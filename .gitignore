@@ -1,0 +1,12 @@
+plts/*
+code/._*
+data/*
+*.RData
+._*
+*Rhistory*
+.Rprofile
+.snakemake/
+logs/*
+results/*
+scripts/*
+docs/*
