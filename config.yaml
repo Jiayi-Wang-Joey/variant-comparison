@@ -1,0 +1,9 @@
+reference_genome: "/home/jiayiwang/pacbio/data/genome/GRCh38.p14.genome.fa"
+transcriptome_bed: "/home/jiayiwang/pacbio/data/genome/gencode.v47.chr_patch_hapl_scaff.annotation.bed"
+exon_bed: "/home/jiayiwang/pacbio/data/genome/exons.bed"
+R: "R_LIBS_USER=/home/jiayiwang/lib/ /usr/local/R/R-4.2.3/bin/R"
+
+convert_threads: 6
+align_map_bam_threads: 6
+align_sort_bam_threads: 6
+align_sort_bam_memory_gb: 4
