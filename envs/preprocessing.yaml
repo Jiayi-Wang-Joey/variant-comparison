@@ -1,0 +1,8 @@
+name: preprocessing
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - isoseq=4.2.0  
+  - lima=2.12.0

@@ -9,8 +9,9 @@ res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[coverage=="gt5",]
+dt <- dt[coverage==5,]
 dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
+
 
 gg <- ggplot(dt, aes(reorder(aligner,METRIC.F1_Score), 
                      METRIC.F1_Score, fill = aligner)) +

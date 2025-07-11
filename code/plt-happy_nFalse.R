@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
-dt <- dt[Filter=="PASS" & coverage=="gt5"]
+dt <- dt[Filter=="PASS" & coverage==5]
 dt <- dt[,Method1:=paste(bamtype,tool,sep=">")]
 dt <- dt[,Method:=paste(bamtype,aligner,tool,sep=">")]
 

@@ -14,7 +14,7 @@ dt <- dt[Filter=="PASS" &
              coverage %in% c("gt5", "gt10", "gt30", "gt50", "gt100")]
 dt <- dt[!is.na(METRIC.F1_Score)]
 dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
-dt <- dt[coverage=="gt5"]
+dt <- dt[coverage==5 & Subtype=="*"]
 dt <- dt[grepl("homopolymer", Subset)]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
 dt$Subset <- recode(dt$Subset,
@@ -23,9 +23,13 @@ dt$Subset <- recode(dt$Subset,
                     "SimpleRepeat_homopolymer_gt11_slop5" = ">11",
                     "SimpleRepeat_homopolymer_gt20_slop5" = ">20"
 )
-
-lvls <- c()
-dt$Subset <- factor(dt$Subset, levels = c("4-6", "7-11",">11", ">20"))
+dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
+sample_levels <- dt[, .(platform = unique(platform)), by = sample][
+    order(platform)
+]$sample
+dt[, sample := factor(sample, levels = sample_levels)]
+dt$Subset <- factor(dt$Subset,
+                    levels = c("4-6", "7-11",">11", ">20"))
 gg <- ggplot(dt, aes(Subset, METRIC.F1_Score, 
                      col=tool,
                      linetype = aligner,
@@ -33,6 +37,12 @@ gg <- ggplot(dt, aes(Subset, METRIC.F1_Score,
                      group = method)) +
     geom_point(alpha=0.6) +
     geom_line(alpha=0.6) + 
+    # geom_text(
+    #     aes(label = round(mean(TRUTH.TOTAL)), y = max(METRIC.F1_Score) * 1.05), 
+    #     size = 3, 
+    #     color = "black", 
+    #     show.legend = FALSE
+    # )  +
     facet_grid2(Type ~ sample, scales = "free") +
     theme_minimal() +
     labs(
@@ -46,4 +56,4 @@ gg <- ggplot(dt, aes(Subset, METRIC.F1_Score,
         panel.border=element_rect(fill=NA))
 
 nSample <- length(unique(dt$sample))
-ggsave(args[[2]], gg, width=5.7*nSample, height=14, units="cm")
+ggsave(args[[2]], gg, width=5.7*nSample, height=12, units="cm")

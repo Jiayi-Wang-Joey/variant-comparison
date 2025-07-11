@@ -12,11 +12,10 @@ suppressPackageStartupMessages({
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
-dt <- dt[Filter=="PASS" & 
-             coverage %in% c("gt5", "gt10", "gt30", "gt50", "gt100")]
+dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
 dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
-dt <- dt[coverage=="gt5"]
+dt <- dt[coverage==5 & Subtype == "*"]
 dt <- dt[grepl("^gc[0-9]", Subset)]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
 dt$Subset <- recode(dt$Subset,
@@ -33,7 +32,11 @@ dt$Subset <- recode(dt$Subset,
                     "gc80to85_slop50" = "80-85",
                     "gc85_slop50"     = ">85"
 )
-
+dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
+sample_levels <- dt[, .(platform = unique(platform)), by = sample][
+    order(platform)
+]$sample
+dt[, sample := factor(sample, levels = sample_levels)]
 lvls <- c("<15", "15-20", "20-25", "25-30", "30-55", "55-60",
     "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
 dt$Subset <- factor(dt$Subset, levels = lvls)

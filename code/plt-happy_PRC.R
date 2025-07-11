@@ -11,14 +11,17 @@ suppressPackageStartupMessages({
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
-dt <- dt[Filter=="PASS" & 
-             coverage %in% c("gt5", "gt10", "gt30", "gt50", "gt100")]
+dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
 dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
-dt[,coverage:=substr(coverage, 3, nchar(coverage))]
-dt[,coverage:=factor(coverage, levels = c("5", "10", "30", "50", "100"))]
+dt[,coverage:=factor(coverage)]
 dt[,method:=paste(bamtype, aligner, tool, sep=">")]
 dt[,aligner_tool:=paste(aligner, tool, sep = ".")]
+dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
+sample_levels <- dt[, .(platform = unique(platform)), by = sample][
+    order(platform)
+]$sample
+dt[, sample := factor(sample, levels = sample_levels)]
 
 coverage_colors <- c(
     "5" = "#4575b4",
@@ -41,7 +44,9 @@ gg <- ggplot(dt,
         title = "Precision-Recall by Sample and Variant Type (PASS-only)",
         x = "Recall",
         y = "Precision",
-        color = "Coverage cutoff"
+        color = "Coverage cutoff",
+        shape = "Aligner.Caller",
+        linetype = "Bam type"
     ) +
     theme_minimal() +
     scale_x_continuous(
@@ -58,4 +63,4 @@ gg <- ggplot(dt,
 
                 
 nSample <- length(unique(dt$sample))
-ggsave(args[[2]], gg, width=5*nSample, height=12, units="cm")
+ggsave(args[[2]], gg, width=5.5*nSample, height=14, units="cm")

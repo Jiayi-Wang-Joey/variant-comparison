@@ -10,3 +10,4 @@ logs/*
 results/*
 scripts/*
 docs/*
+.R**
