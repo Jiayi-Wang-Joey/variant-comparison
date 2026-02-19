@@ -1,0 +1,9 @@
+name: aligner
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - minimap2=2.28-0
+  - samtools=1.19
+  - pbmm2=1.7.0

@@ -31,23 +31,39 @@ td <- td[
 td[,error_rate:=error_rate*100]
 td[, mapping_rate:=reads_mapped/raw_total_sequences]
 td <- td[aligner=="minimap2"]
-td <- td[,.(sample, status,  aligner, tech, 
+td <- td[,.(sample, status,  aligner, tech, reads_mapped,
             raw_total_sequences, mapping_rate, error_rate, 
             average_quality, average_length)]
-td[,raw_total_sequences:=log10(raw_total_sequences)]
+td[,raw_total_sequences:=raw_total_sequences/10e6]
+td[,reads_mapped:=reads_mapped/10e6]
 dd <- melt(
     td,
     id.vars = c("sample", "status", "aligner", "tech"),
-    measure.vars = c("raw_total_sequences", "mapping_rate", 
+    measure.vars = c("raw_total_sequences", "mapping_rate", "reads_mapped",
                      "error_rate", "average_quality", "average_length"),
     variable.name = "metric",
     value.name = "value"
 )
+dd[sample=="HG002a", sample:="HG002"]
+dd[tech=="Baylor-IsoSeq", tech:="IsoSeq"]
+dd[, facet_group := interaction(metric, sample, drop = TRUE)]
 
+pal <- c(
+    "dRNA002" = "#fff7bc",
+    "cDNAxR09" = "#fee391",
+    "dRNA004" = "#fec44f",
+    "cDNAxR10" = "#d95f0e",
+    "IsoSeq" = "#bcbddc",
+    "MasSeq" = "#54278f"
+)
+
+dd[, col := pal[tech]]
 
 aes <- list(
     geom_bar(stat = "identity", position = position_dodge()),
-    scale_fill_brewer(palette = "Paired"),
+    scale_fill_identity(guide = "legend",
+                        breaks = pal,
+                        labels = names(pal)),
     facet_grid2(sample ~ metric, scales = "free", 
                 axes="all", independent="all") ,
     theme_minimal(),
@@ -57,14 +73,12 @@ aes <- list(
         axis.text.x = element_blank()
     )
 )
-
-
-gg <- ggplot(dd, aes(reorder_within(tech, value, metric), 
-                     value, fill=tech)) + 
+gg <- ggplot(dd, aes(reorder_within(tech, value, facet_group), 
+                     value, fill=col)) + 
     aes +
     labs(x = NULL, y = "Value", fill = "Technology")
 
 
 #nMetric <- length(unique(td$metric))
 nSample <- length(unique(td$sample))
-ggsave(args[[2]], gg, width=25, height=4*nSample, units="cm")
+ggsave(args[[2]], gg, width=28, height=4*nSample, units="cm")

@@ -11,3 +11,6 @@ results/*
 scripts/*
 docs/*
 .R**
+arch/**
+tmp/**
+code/arch/**

@@ -10,10 +10,11 @@ suppressPackageStartupMessages({
     library(ggtext)
     library(patchwork)
     library(RColorBrewer)
+    library(tidytext)
 })
 
 cols <- c("Filter", "METRIC.F1_Score", "coverage", "Subset", "Subtype",
-          "sample", "aligner", "tool", "bamtype", "Type")
+          "sample", "aligner", "tool", "bamtype", "Type", "QUERY.TOTAL")
 res <- lapply(args[[1]], function(f) {
     dt <- fread(f, header = TRUE)
     if (nrow(dt) > 0) dt[, ..cols] else NULL
@@ -25,7 +26,6 @@ dt <- dt[!is.na(METRIC.F1_Score)]
 dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype == "*"]
 dt <- dt[grepl("^gc[0-9]", Subset)]
-dt <- dt[aligner=="minimap2"]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
 dt$Subset <- recode(dt$Subset,
                     "gc15_slop50"     = "<15",
@@ -42,7 +42,7 @@ dt$Subset <- recode(dt$Subset,
                     "gc85_slop50"     = ">85"
 )
 lvls <- c("<15", "15-20", "20-25", "25-30", "30-55", "55-60",
-    "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
+          "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
 dt$Subset <- factor(dt$Subset, levels = lvls)
 
 shown <- lvls[c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, 
@@ -55,52 +55,77 @@ dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
 nk <- length(unique(dt$tool))
 cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
                  unique(dt$tool))
-
+make_heat <- function(df) {
+    df %>%
+        group_by(cell_line, platform, Subset, tool,text_col) %>%
+        summarise(
+            METRIC.F1_Score = mean(METRIC.F1_Score, na.rm = TRUE),
+            QUERY.TOTAL = sum(QUERY.TOTAL, na.rm = TRUE),   
+            .groups = "drop"
+        )
+}
+dt[, text_col := fifelse(METRIC.F1_Score >= 0.9, 
+                         "white", "black")]
 snp <- dt[Type=="SNP"]
 idl <- dt[Type=="INDEL"]
 
-aes <- list(geom_point(alpha=0.6),
-            geom_line(alpha = 0.6),
-            facet_grid(cell_line ~ platform),
-            theme_minimal(),
-            labs(x = "GC Content (%)", y = "F1 Score", color = "Variant Caller"),
-            scale_color_manual(values = cols),
-            theme(panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
-                  panel.grid.minor = element_blank(),
-                  panel.border = element_rect(
-                      color = "black",
-                      fill = NA,
-                      linewidth = 0.8
-                  ),
-                  strip.background = element_rect(
-                      fill = "white",
-                      color = "black",
-                      linewidth = 0.8),
-                  strip.text =  element_markdown(size=11),
-                  axis.line = element_line(color = "black", linewidth = 0.3),
-                  panel.spacing = unit(0, "lines"),
-                  panel.spacing.x = unit(0, "lines"),
-                  panel.spacing.y = unit(0, "lines"),
-                  axis.text.y = element_text(size = 7),
-                  axis.title.x = element_text(size = 11),
-                  axis.title.y = element_text(size = 11),
-                  legend.title = element_text(size = 11),
-                  axis.text.x = element_text(angle = 45, size = 7,
-                                             hjust = 1, vjust = 1)))
+snp_h <- make_heat(snp)
+idl_h <- make_heat(idl)
 
-p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score, 
-                      col=tool,
-                      group = method)) + aes + ggtitle("SNP") 
+layers <- list(
+    geom_tile(col = "white", linewidth = 0.1),
+    geom_text(aes(label = QUERY.TOTAL,
+                  color = text_col), 
+              size = 1.5),
+    scale_fill_gradientn(
+        "F1 score",
+        colors = c("ivory", "gold", "red", "navy"),
+        na.value = "lightgrey",
+        limits = c(0, 1),
+        n.breaks = 2
+    ),
+    scale_color_identity(),
+    theme_minimal(),
+    facet_grid2(cell_line ~ platform, scales = "free_y"),
+    scale_y_reordered(sep = "___"),
+    theme(
+        plot.margin = margin(),
+        panel.grid = element_blank(),
+        panel.border = element_rect(fill = NA),
+        strip.text = element_markdown(),
+        plot.tag = element_text(size = 9, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ),
+    labs(x="GC Content (%)", y="Variant Caller")
+)
+SEP <- "|" 
+p1 <- ggplot(
+    snp_h,
+    aes(
+        Subset,
+        reorder_within(tool, METRIC.F1_Score, cell_line, sep = SEP, desc = TRUE),
+        fill = METRIC.F1_Score
+    )
+) +
+    layers +
+    scale_y_discrete(labels = function(x) sub("\\|.*$", "", x))
 
+p2 <- ggplot(
+    idl_h,
+    aes(
+        Subset,
+        reorder_within(tool, METRIC.F1_Score, cell_line, sep = SEP, desc = TRUE),
+        fill = METRIC.F1_Score
+    )
+) +
+    layers +
+    scale_y_discrete(labels = function(x) sub("\\|.*$", "", x))
 
-p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
-                      col=tool,
-                      group = method)) + aes + ggtitle("SNP") + 
-    theme(legend.position = "none")
-
-gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
+gg <- p1 + p2 +
+    plot_layout(ncol = 1, guides = "collect") +
     plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold")) 
+    theme(plot.tag = element_text(face = "bold"))
 
 
-ggsave(args[[2]], gg, width=32, height=30, units="cm")
+ggsave(args[[2]], gg, width=50, height=25, units="cm")
+write.table(dt, "data/results/GC_content.csv")

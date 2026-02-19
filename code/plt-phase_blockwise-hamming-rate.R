@@ -1,5 +1,3 @@
-# args <- list(list.files("/Volumes/jiayiwang/variant-comparison/results/switch_error/",
-# pattern = "\\.tsv$", full.names = TRUE), "/Volumes/jiayiwang/variant-comparison/plts/phase_switch-error.pdf")
 
 suppressPackageStartupMessages({
     library(ggplot2)
@@ -14,9 +12,9 @@ suppressPackageStartupMessages({
 res <- lapply(args[[1]], \(x) {
     dt <- fread(x)
     dt <- dt[, .(sample, bamtype, caller, phaser, 
-           aligner, chromosome, all_switch_rate)]
+                 aligner, chromosome, blockwise_hamming_rate)]
     #dt[, .(mean_switch_rate = mean(all_switch_rate)), 
-       #by = .(sample, caller, phaser)]
+    #by = .(sample, caller, phaser)]
 })
 
 dt <- rbindlist(res)
@@ -26,7 +24,7 @@ dt[, sample_lab := ifelse(grepl("MasSeq|IsoSeq", sample),
                           paste0("<span style='color:#000000;'>", 
                                  sample, "</span>"))]
 
-gg <- ggplot(dt, aes(x = phaser, y = all_switch_rate, fill = phaser)) +
+gg <- ggplot(dt, aes(x = phaser, y = blockwise_hamming_rate, fill = phaser)) +
     geom_boxplot(outlier.shape = NA, alpha = 0.8) +
     geom_jitter(width = 0.2, alpha = 0.4, size = 0.8) +
     facet_grid2(caller ~ sample_lab, scales="free_y", axes = "y") +
@@ -38,7 +36,7 @@ gg <- ggplot(dt, aes(x = phaser, y = all_switch_rate, fill = phaser)) +
         axis.text.x = element_blank(),                    
         axis.ticks.x = element_blank(),
         strip.text = element_markdown())
-    scale_fill_brewer(palette = "Set1")  
+scale_fill_brewer(palette = "Set1")  
 
 
 ggsave(args[[2]], gg, width=30, height=8, units="cm")

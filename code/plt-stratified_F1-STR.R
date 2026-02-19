@@ -24,46 +24,55 @@ dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
 dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype == "*"]
-dt <- dt[grepl("^gc[0-9]", Subset)]
-dt <- dt[aligner=="minimap2"]
-dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
-dt$Subset <- recode(dt$Subset,
-                    "gc15_slop50"     = "<15",
-                    "gc15to20_slop50" = "15-20",
-                    "gc20to25_slop50" = "20-25",
-                    "gc25to30_slop50" = "25-30",
-                    "gc30to55_slop50" = "30-55",
-                    "gc55to60_slop50" = "55-60",
-                    "gc60to65_slop50" = "60-65",
-                    "gc65to70_slop50" = "65-70",
-                    "gc70to75_slop50" = "70-75",
-                    "gc75to80_slop50" = "75-80",
-                    "gc80to85_slop50" = "80-85",
-                    "gc85_slop50"     = ">85"
+keep_subsets <- c(
+    "SimpleRepeat_diTR_10to49_slop5",
+    "SimpleRepeat_diTR_50to149_slop5",
+    "SimpleRepeat_diTR_ge150_slop5",
+    "SimpleRepeat_triTR_14to49_slop5",	
+    "SimpleRepeat_triTR_50to149_slop5",	
+    "SimpleRepeat_triTR_ge150_slop5",
+    "SimpleRepeat_quadTR_19to49_slop5", 
+    "SimpleRepeat_quadTR_50to149_slop5",
+    "SimpleRepeat_quadTR_ge150_slop5"
 )
-lvls <- c("<15", "15-20", "20-25", "25-30", "30-55", "55-60",
-    "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
-dt$Subset <- factor(dt$Subset, levels = lvls)
+dt <- dt[Subset %in% keep_subsets]
+dt$Subset <- recode(dt$Subset,
+                    "SimpleRepeat_diTR_10to49_slop5"="diTR_10-49",
+                    "SimpleRepeat_diTR_50to149_slop5"="diTR_50-149",
+                    "SimpleRepeat_diTR_ge150_slop5"="diTR_>150",
+                    "SimpleRepeat_triTR_14to49_slop5"="triTR_14-49",	
+                    "SimpleRepeat_triTR_50to149_slop5"="triTR_50-149",	
+                    "SimpleRepeat_triTR_ge150_slop5"="triTR_>150",
+                    "SimpleRepeat_quadTR_19to49_slop5"="quadTR_19-49", 
+                    "SimpleRepeat_quadTR_50to149_slop5"="quadTR_50-149",
+                    "SimpleRepeat_quadTR_ge150_slop5"="quadTR_>150"
+)
+write.table(dt, "data/results/STR.csv")
+dt[, method := paste(aligner, bamtype, tool, sep = ".")]
 
-shown <- lvls[c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, 
-                FALSE, TRUE, FALSE, TRUE, TRUE)]
+lvls <- c(
+    "diTR_10-49", "diTR_50-149","diTR_>150",
+    "triTR_14-49", "triTR_50-149","triTR_>150",
+    "quadTR_19-49", "quadTR_50-149", "quadTR_>150"
+)
+dt$Subset <- factor(dt$Subset, levels = lvls)
 dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
 dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
+dt <- dt[aligner=="minimap2"]
 nk <- length(unique(dt$tool))
 cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
                  unique(dt$tool))
 
 snp <- dt[Type=="SNP"]
 idl <- dt[Type=="INDEL"]
-
 aes <- list(geom_point(alpha=0.6),
             geom_line(alpha = 0.6),
             facet_grid(cell_line ~ platform),
             theme_minimal(),
-            labs(x = "GC Content (%)", y = "F1 Score", color = "Variant Caller"),
+            labs(x = "Tandem Repeat Subclass", y = "F1 Score", color = "Variant Caller"),
             scale_color_manual(values = cols),
             theme(panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
                   panel.grid.minor = element_blank(),
@@ -95,12 +104,11 @@ p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score,
 
 p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
                       col=tool,
-                      group = method)) + aes + ggtitle("SNP") + 
+                      group = method)) + aes + ggtitle("INDEL") + 
     theme(legend.position = "none")
 
 gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
     plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold")) 
-
-
-ggsave(args[[2]], gg, width=32, height=30, units="cm")
+    theme(plot.tag = element_text(face = "bold"))
+#write.table(dt, "data/results/STR.csv")
+ggsave(args[[2]], gg, width=28, height=29, units="cm")

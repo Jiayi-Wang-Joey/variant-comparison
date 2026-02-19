@@ -1,0 +1,7 @@
+name: aligner
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - samtools=1.21

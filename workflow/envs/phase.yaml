@@ -1,0 +1,14 @@
+name: phasing-tools
+channels:
+    - bioconda
+    - conda-forge
+    - defaults
+dependencies:
+    - python=3.9
+    - whatshap
+    - hapcut2
+    - bcftools
+    - samtools   
+    - htslib
+
+
