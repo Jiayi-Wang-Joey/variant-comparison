@@ -18,11 +18,10 @@ ONT_SAMPLE = [
     ] 
 
 BAM = ["origin"] # transformation of bam
-PACBIO_ALIGNER = ["minimap2", "pbmm2"] # pacbio aligner
+PACBIO_ALIGNER = [ "minimap2", "pbmm2"] # pacbio aligner
 ONT_ALIGNER = ["minimap2"] # ONT aligner
 COVERAGE = [1, 5, 10, 30, 50, 100] # coverage
-TOOL = ["Clair3-RNA", "DeepVariant", "longcallR", "longcallR-nn", "GATK"] # variant caller
-PHASER = ["WhatsHap", "longphase", "HapCUT2"]
+TOOL = ["Clair3-RNA", "DeepVariant", "longcallR",  "longcallR-nn", "GATK"] # variant caller
 
 ISOSEQ_STATUS = ["raw", "preprocessed"]
 
@@ -31,6 +30,7 @@ include: "workflow/rules/align.smk"
 include: "workflow/rules/variant_calling.smk"
 include: "workflow/rules/variant_benchmark.smk"
 include: "workflow/rules/phasing.smk"
+include: "workflow/rules/phasing_benchmark.smk"
 
 
 # RESULTS --------------------------------------------------------------------
@@ -61,9 +61,6 @@ happy = expand("results/happy/{tool}_origin_{aligner}_{sample}_{coverage}.summar
 happy_transformed = expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL, aligner=PACBIO_ALIGNER, sample=PACBIO_SAMPLE, coverage=COVERAGE, bamtype=BAM) + \
    expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL,  aligner=ONT_ALIGNER, sample=ONT_SAMPLE, coverage=COVERAGE, bamtype=BAM)
 
-# roc = expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.roc.csv.gz",  tool=TOOL, aligner=PACBIO_ALIGNER, sample=PACBIO_SAMPLE, bamtype=BAM,  coverage=COVERAGE) + \
-#     expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.roc.csv.gz",  tool=TOOL, aligner=ONT_ALIGNER, sample=ONT_SAMPLE, bamtype=BAM,  coverage=COVERAGE)
-
 
 stratified = expand("results/stratified/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.extended.csv", tool=TOOL,  aligner=PACBIO_ALIGNER, sample=PACBIO_SAMPLE, bamtype=BAM, coverage=COVERAGE) + \
     expand("results/stratified/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.extended.csv", tool=TOOL,  aligner=ONT_ALIGNER, sample=ONT_SAMPLE, bamtype=BAM, coverage=COVERAGE)
@@ -74,44 +71,46 @@ snpeff = expand("results/SnpEff/{tool}_origin_{aligner}_{sample}_5.vcf.gz",  too
 ISOSEQ_SAMPLE = [s for s in ISOSEQ_SAMPLE if "HG002" in s or "HG005" in s]
 MASSEQ_SAMPLE = [s for s in MASSEQ_SAMPLE if "HG002" in s or "HG005" in s]
 ONT_SAMPLE    = [s for s in ONT_SAMPLE    if "HG002" in s or "HG005" in s]
-TOOL = ["Clair3-RNA","DeepVariant", "GATK", "longcallR-nn"]
+PHASER = ["HiPhase", "WhatsHap", "longphase", "HapCUT2"] # "WhatsHap", "longphase","HapCUT2"
+TOOL = ["Clair3-RNA","DeepVariant", "longcallR-nn"]
 PACBIO_SAMPLE = ISOSEQ_SAMPLE + MASSEQ_SAMPLE
+SAMPLE = PACBIO_SAMPLE + ONT_SAMPLE
 
-phase_bed = expand(
-    "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.bed",
-    phaser=PHASER,
-    tool=TOOL,
-    sample=PACBIO_SAMPLE
-) + expand(
-    "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.bed",
-    phaser=PHASER,
-    tool=TOOL,
-    sample=ONT_SAMPLE
+
+# align = {
+#     "preprocess": preprocess,
+#     "origin": origin,
+#     "transformed": transformed,
+# }
+TYPE = ["all", "SNP"]          
+phase_tsv = (
+    expand(
+        "results/switch_error/summary/{phaser}_{tool}_origin_minimap2_{sample}_{type}.tsv",
+        phaser=[p for p in PHASER if p != "HiPhase"],
+        tool=TOOL,
+        sample=SAMPLE,
+        type=TYPE
+    )
+    + \
+    expand(
+        "results/switch_error/summary/HiPhase_{tool}_origin_minimap2_{sample}_{type}.tsv",
+        tool=TOOL,
+        sample=PACBIO_SAMPLE,
+        type=TYPE
+    ) + \
+    expand(
+        "results/switch_error/summary/longcallR_longcallR_origin_minimap2_{sample}_{type}.tsv",
+        sample=SAMPLE,
+        type=TYPE
+    )
 )
-
-phase_tsv = expand(
-    "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.tsv",
-    phaser=PHASER,
-    tool=TOOL,
-    sample=PACBIO_SAMPLE
-) + expand(
-    "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.tsv",
-    phaser=PHASER,
-    tool=TOOL,
-    sample=ONT_SAMPLE)
-
-align = {
-    "preprocess": preprocess,
-    "origin": origin,
-    "transformed": transformed,
-}
 
 eva = {
     #"qual": qual,
     "happy": happy,
     #"transformed": happy_transformed,
-    "stratified": stratified,
-    #"phase": phase_tsv,
+    #"stratified": stratified,
+    "phase": phase_tsv,
     #"snpeff": snpeff
 }
 

@@ -76,48 +76,53 @@ rule happy_benchmark:
         "logs/happy_{tool}_{bamtype}_{aligner}_{sample}_{coverage}.log"
     shell:
         """
-            export HGREF={params.ref}
-        
-            if ! bcftools index -t -f "{input.vcf}" >/dev/null 2>&1; then
-                echo "VCF is not sorted or not indexed properly. Sorting and indexing..."
-                cp "{input.vcf}" "{input.vcf}.unsorted"
-                bcftools sort -Oz -o "{input.vcf}.tmp.gz" "{input.vcf}.unsorted"
-                mv "{input.vcf}.tmp.gz" "{input.vcf}"
-                bcftools index -t -f "{input.vcf}"
-                rm "{input.vcf}.unsorted"
-            fi
-            singularity exec \
-                --bind /home/jiayiwang/variant-comparison:/home/jiayiwang/variant-comparison \
-                /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/hap.py \
-                {params.truth} \
-                {input.vcf} \
-                -r {params.ref} \
-                -f {input.confidence} \
-                -T {input.bed} \
-                -o {params.outdir} \
-                --engine=vcfeval \
-                --threads={params.threads}
-            
-            awk -v tool="{wildcards.tool}" \
-                -v bamtype="{wildcards.bamtype}" \
-                -v aligner="{wildcards.aligner}" \
-                -v sample="{wildcards.sample}" \
-                -v coverage="{wildcards.coverage}" \
-            'BEGIN {{FS=OFS=","}} 
-                NR==1 {{print $0, "tool", "bamtype", "aligner", "sample", "coverage"}} 
-                NR>1 {{print $0, tool, bamtype, aligner, sample, coverage}}' "{output.smy}" > "{output.smy}.tmp" && \
-                mv "{output.smy}.tmp" "{output.smy}"
+        export HGREF={params.ref}
 
-            zcat results/happy/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.roc.all.csv.gz | \
-            awk -v tool="{wildcards.tool}" \
-                -v bamtype="{wildcards.bamtype}" \
-                -v aligner="{wildcards.aligner}" \
-                -v sample="{wildcards.sample}" \
-                -v coverage="{wildcards.coverage}" \
-            'BEGIN {{FS=OFS=","}} 
-                NR==1 {{print $0, "tool", "bamtype", "aligner", "sample", "coverage"}} 
-                NR>1 {{print $0, tool, bamtype, aligner, sample, coverage}}'| gzip > {output.roc}
+        if ! bcftools index -t -f "{input.vcf}" >/dev/null 2>&1; then
+            echo "VCF is not sorted or not indexed properly. Sorting and indexing..."
+            cp "{input.vcf}" "{input.vcf}.unsorted"
+            bcftools sort -Oz -o "{input.vcf}.tmp.gz" "{input.vcf}.unsorted"
+            mv "{input.vcf}.tmp.gz" "{input.vcf}"
+            bcftools index -t -f "{input.vcf}"
+            rm "{input.vcf}.unsorted"
+        fi
+        bcftools view -f PASS -Oz -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz {input.vcf}
+        singularity exec \
+            --bind /home/jiayiwang/variant-comparison:/home/jiayiwang/variant-comparison \
+            /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/hap.py \
+            {params.truth} \
+            tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz  \
+            -r {params.ref} \
+            -f {input.confidence} \
+            -T {input.bed} \
+            -o {params.outdir} \
+            --engine=vcfeval \
+            --threads={params.threads}
+        
+        awk -v tool="{wildcards.tool}" \
+            -v bamtype="{wildcards.bamtype}" \
+            -v aligner="{wildcards.aligner}" \
+            -v sample="{wildcards.sample}" \
+            -v coverage="{wildcards.coverage}" \
+        'BEGIN {{FS=OFS=","}} 
+            NR==1 {{print $0, "tool", "bamtype", "aligner", "sample", "coverage"}} 
+            NR>1 {{print $0, tool, bamtype, aligner, sample, coverage}}' "{output.smy}" > "{output.smy}.tmp" && \
+            mv "{output.smy}.tmp" "{output.smy}"
+
+        zcat results/happy/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.roc.all.csv.gz | \
+        awk -v tool="{wildcards.tool}" \
+            -v bamtype="{wildcards.bamtype}" \
+            -v aligner="{wildcards.aligner}" \
+            -v sample="{wildcards.sample}" \
+            -v coverage="{wildcards.coverage}" \
+        'BEGIN {{FS=OFS=","}} 
+            NR==1 {{print $0, "tool", "bamtype", "aligner", "sample", "coverage"}} 
+            NR>1 {{print $0, tool, bamtype, aligner, sample, coverage}}'| gzip > {output.roc}
+
+        rm tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz 
         """
+
+
 
 
 rule stratified_benchmark:

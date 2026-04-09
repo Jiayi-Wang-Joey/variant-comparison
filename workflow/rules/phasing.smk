@@ -10,9 +10,32 @@ def get_bam(wildcards):
 
     return f"results/align/{status}/origin/{aligner}_{sample}.aligned.bam"
 
-rule WhatsHap:
+
+# rule filter_vcf:
+#     input:
+#         vcf = "results/variant/{tool}/origin_minimap2_{sample}.vcf.gz"
+#     output:
+#         vcf = "results/variant/{tool}/filtered_{sample}.vcf.gz"
+#     shell:
+#         "bcftools view -f PASS {input.vcf} -Oz -o {output.vcf} && bcftools index {output.vcf}"
+
+rule filter_vcf:
     input:
         vcf = "results/variant/{tool}/origin_minimap2_{sample}.vcf.gz",
+        ref = config["reference_genome"]
+    output:
+        vcf = "results/variant/{tool}/filtered_{sample}.vcf.gz"
+    shell:
+        """
+        bcftools view -f PASS {input.vcf} \
+        | bcftools norm -f {input.ref} -c s -Oz -o {output.vcf}
+        
+        bcftools index -f {output.vcf}
+        """
+
+rule WhatsHap:
+    input:
+        vcf = rules.filter_vcf.output,
         bam = get_bam,
         ref = config["reference_genome"]
     output:
@@ -39,7 +62,7 @@ def get_platform_longphase(wildcards):
 
 rule longphase:
     input:
-        vcf = "results/variant/{tool}/origin_minimap2_{sample}.vcf.gz",
+        vcf = rules.filter_vcf.output,
         bam = get_bam,
         ref = config["reference_genome"]
     output:
@@ -67,7 +90,7 @@ rule longphase:
 
 rule longcallR_phase:
     input:
-        vcf = "results/variant/{tool}/origin_minimap2_{sample}.vcf.gz",
+        vcf = rules.filter_vcf.output,
         bam = get_bam,
         ref = config["reference_genome"]
     output:
@@ -107,7 +130,7 @@ def get_platform_hapcut2(wildcards):
 
 rule hapcut2:
     input:
-        vcf = "results/variant/{tool}/origin_minimap2_{sample}.vcf.gz",
+        vcf = rules.filter_vcf.output,
         bam = get_bam,
         ref = config["reference_genome"]
     output:
@@ -152,44 +175,67 @@ rule hapcut2:
               tmp/{wildcards.sample}.fragment_file
         """
 
-rule switch_error:
+rule HiPhase:
     input:
-        vcf = "results/phase/{phaser}/{tool}_origin_minimap2_{sample}.vcf.gz"
+        vcf = rules.filter_vcf.output,
+        bam = get_bam,
+        ref = config["reference_genome"]
     output:
-        bed = "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.bed",
-        tsv = "results/switch_error/{phaser}_{tool}_origin_minimap2_{sample}.tsv"
+        vcf = "results/phase/HiPhase/{tool}_origin_minimap2_{sample}.vcf.gz"
     log:
-        "logs/phase_switch_error_{phaser}_{tool}_origin_minimap2_{sample}.log"
-    params:
-        truth = lambda wildcards: f"data/truth/{wildcards.sample[:5]}/phase.vcf.gz"
+        "logs/phase_HiPhase_{tool}_origin_minimap2_{sample}.log"
+    threads: 8
+    conda:
+        "../envs/phase.yaml"
     shell:
         """
-        # Index truth VCF if missing
-        if [ ! -f {params.truth}.tbi ]; then
-            echo "Index file for truth VCF missing, creating with tabix..."
-            tabix -p vcf {params.truth}
-        fi
+        hiphase \
+            --bam {input.bam} \
+            --vcf {input.vcf} \
+            --preset rna \
+            --output-vcf {output.vcf} \
+            --reference {input.ref} \
+            --ignore-read-groups \
+            --phase-singletons \
+            --threads {threads} &>> {log}
+        """
 
-        # Index input VCF if missing
-        if [ ! -f {input.vcf}.tbi ]; then
-            echo "Index file for input VCF missing, sorting and indexing..."
-            bcftools sort -O z -o {input.vcf}.sorted.vcf.gz {input.vcf}
-            mv {input.vcf}.sorted.vcf.gz {input.vcf}
-            tabix -p vcf {input.vcf}
-        fi
+def get_margin_params(wildcards):
+    sample = wildcards.sample
+    if sample in PACBIO_SAMPLE:
+        return "/opt/margin_dir/params/phase/allParams.phase_vcf.pb-hifi.json"
+    elif sample in ONT_SAMPLE:
+        return "/opt/margin_dir/params/phase/allParams.phase_vcf.ont.json"
+    else:
+        raise ValueError(f"Unknown platform for sample: {sample}. Check PACBIO_SAMPLE/ONT_SAMPLE lists.")
 
-        whatshap compare --ignore-sample-name \
-            --switch-error-bed {output.bed} \
-            --tsv-pairwise {output.tsv}.tmp \
-            {params.truth} {input.vcf} > {log} 2>&1
+rule margin:
+    input:
+        vcf = rules.filter_vcf.output.vcf,
+        bam = get_bam,
+        ref = config["reference_genome"]
+    output:
+        vcf = "results/phase/Margin/{tool}_origin_minimap2_{sample}.vcf.gz"
+    log:
+        "logs/phase_Margin_{tool}_origin_minimap2_{sample}.log"
+    threads: 8
+    container:
+        "docker://kishwars/pepper_deepvariant:r0.8"
+    params:
+        path = "results/phase/Margin/{tool}_origin_minimap2_{sample}",
+        vcf = "results/phase/Margin/{tool}_origin_minimap2_{sample}.phased.vcf",
+        margin_json = get_margin_params
+    shell:
+        """
+        margin phase \
+            {input.bam} \
+            {input.ref} \
+            {input.vcf} \
+            {params.margin_json} \
+            -t {threads} \
+            --skipHaplotypeBAM \
+            -o {params.path} > {log} 2>&1
 
-        awk -v sample="{wildcards.sample}" \
-            -v bamtype="origin" \
-            -v caller="{wildcards.tool}" \
-            -v phaser="{wildcards.phaser}" \
-            -v aligner="minimap2" \
-            'BEGIN {{FS=OFS="\\t"}} NR==1 {{print "sample","bamtype","caller","phaser","aligner",$0}} NR>1 {{print sample,bamtype,caller,phaser,aligner,$0}}' \
-            {output.tsv}.tmp > {output.tsv}
-
-        rm {output.tsv}.tmp
+        bgzip -f {params.vcf} &>> {log}
+        mv {params.vcf}.gz {output.vcf}
         """

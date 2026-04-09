@@ -26,18 +26,25 @@ dt <- rbindlist(res)
                               paste0("<span style='color:#54278f;'>", platform, "</span>"),
                               paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
     dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
+    #dt <- dt[cell_line %in% c("HG002", "HG005")]
+    dt <- dt[cell_line %in% c("HG004")]
+    dt <- dt[aligner=="minimap2"]
     snp <- dt[Type=="SNP"]
     idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
-    nk <- length(unique(dt$tool))
-    cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
-                     unique(dt$tool))
+    cols <- c(
+        "Clair3-RNA"   = "#A6CEE3",
+        "DeepVariant"  = "#52AF43",
+        "GATK"         = "#F06C45",
+        "longcallR"    = "#B294C7",
+        "longcallR-nn" = "#B15928"
+    )
     .p <- \(dt, title) {
         ggplot(dt, aes(coverage, 
                         METRIC.F1_Score, 
                         color = tool,
                         group = method)) +
-            geom_point(alpha=0.6, size = 1.2) +
-            geom_line(alpha=0.6) + 
+            geom_point(alpha=0.8, size = 1.5) +
+            geom_line(alpha=0.8, linewidth=0.8) + 
             theme_classic() +
             facet_grid2( cell_line ~ platform, scales = "free") + 
             labs(
@@ -58,15 +65,20 @@ dt <- rbindlist(res)
                     fill = "white",
                     color = "black",
                     linewidth = 0.8),
-                strip.text =  element_markdown(),
+                strip.text =  element_markdown(size=11),
                 axis.line = element_line(color = "black", linewidth = 0.3),
                 panel.spacing = unit(0, "lines"),
                 panel.spacing.x = unit(0, "lines"),
-                panel.spacing.y = unit(0, "lines")
+                panel.spacing.y = unit(0, "lines"),
+                axis.text.y = element_text(size = 7),
+                axis.title.x = element_text(size = 11),
+                axis.title.y = element_text(size = 11),
+                legend.title = element_text(size = 11),
+                aspect.ratio = 1
             )  +
             ggtitle(title)
     }
-    p1 <- .p(snp, "SNP")
+    p1 <- .p(snp, "SNP") + theme(legend.position = "none")
     p2 <- .p(idl, "INDEL") + theme(legend.position = "none")
     
     
@@ -78,6 +90,6 @@ dt <- rbindlist(res)
 gg <- .f("PASS", "F1 score - PASS only")
 
 
-ggsave(args[[2]], gg, width=30, height=30, units="cm")
+ggsave(args[[2]], gg, width=20, height=15, units="cm")
 
 

@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
     library(RColorBrewer)
 })
 
-cols <- c("Filter", "METRIC.F1_Score", "coverage", "Subset", "Subtype",
+cols <- c("Filter", "METRIC.Recall", "coverage", "Subset", "Subtype",
           "sample", "aligner", "tool", "bamtype", "Type")
 res <- lapply(args[[1]], function(f) {
     dt <- fread(f, header = TRUE)
@@ -21,7 +21,7 @@ res <- lapply(args[[1]], function(f) {
 res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS"]
-dt <- dt[!is.na(METRIC.F1_Score)]
+dt <- dt[!is.na(METRIC.Recall)]
 dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype == "*"]
 dt <- dt[grepl("^gc[0-9]", Subset)]
@@ -42,7 +42,7 @@ dt$Subset <- recode(dt$Subset,
                     "gc85_slop50"     = ">85"
 )
 lvls <- c("<15", "15-20", "20-25", "25-30", "30-55", "55-60",
-    "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
+          "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
 dt$Subset <- factor(dt$Subset, levels = lvls)
 
 shown <- lvls[c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, 
@@ -52,13 +52,9 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
-cols <- c(
-    "Clair3-RNA"   = "#A6CEE3",
-    "DeepVariant"  = "#52AF43",
-    "GATK"         = "#F06C45",
-    "longcallR"    = "#B294C7",
-    "longcallR-nn" = "#B15928"
-)
+nk <- length(unique(dt$tool))
+cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
+                 unique(dt$tool))
 
 snp <- dt[Type=="SNP"]
 idl <- dt[Type=="INDEL"]
@@ -67,7 +63,7 @@ aes <- list(geom_point(alpha=0.6),
             geom_line(alpha = 0.6),
             facet_grid(cell_line ~ platform),
             theme_minimal(),
-            labs(x = "GC Content (%)", y = "F1 Score", color = "Variant Caller"),
+            labs(x = "GC Content (%)", y = "Recall", color = "Variant Caller"),
             scale_color_manual(values = cols),
             theme(panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
                   panel.grid.minor = element_blank(),
@@ -92,12 +88,12 @@ aes <- list(geom_point(alpha=0.6),
                   axis.text.x = element_text(angle = 45, size = 7,
                                              hjust = 1, vjust = 1)))
 
-p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score, 
+p1 <- ggplot(snp, aes(Subset, METRIC.Recall, 
                       col=tool,
                       group = method)) + aes + ggtitle("SNP") 
 
 
-p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
+p2 <- ggplot(idl, aes(Subset, METRIC.Recall, 
                       col=tool,
                       group = method)) + aes + ggtitle("INDEL") + 
     theme(legend.position = "none")

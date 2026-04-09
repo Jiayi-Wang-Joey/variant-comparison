@@ -44,64 +44,64 @@ def minimap2_preset(wildcards):
         raise ValueError(f"Cannot determine minimap2 preset from sample name: {wildcards.sample}")
 
 
-rule minimap2_align:
-    priority: 98
-    input:
-        reads = rules.bam2fq.output,
-        transcriptome = config["transcriptome_bed"],
-        genome = config["reference_genome"],
-    output:
-        "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
-    params:
-        align_map_bam_threads = config["align_map_bam_threads"],
-        align_sort_bam_threads = config["align_sort_bam_threads"],
-        align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
-        preset = minimap2_preset
-    conda:
-        "../envs/minimap2.yaml"
-    log:
-        stdout = "logs/minimap2/{status}/{sample}.out",
-        stderr = "logs/minimap2/{status}/{sample}.err"
-    # wildcard_constraints:
-    #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
-    shell:
-        """
-        minimap2 {params.preset} --junc-bed {input.transcriptome} \
-            -t {params.align_map_bam_threads} \
-            {input.genome} {input.reads} | samtools sort \
-            -@ {params.align_sort_bam_threads} \
-            -m{params.align_sort_bam_memory_gb}g \
-            -o {output} > {log.stdout} 2> {log.stderr}
-        """
+# rule minimap2_align:
+#     priority: 98
+#     input:
+#         reads = rules.bam2fq.output,
+#         transcriptome = config["transcriptome_bed"],
+#         genome = config["reference_genome"],
+#     output:
+#         "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
+#     params:
+#         align_map_bam_threads = config["align_map_bam_threads"],
+#         align_sort_bam_threads = config["align_sort_bam_threads"],
+#         align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
+#         preset = minimap2_preset
+#     conda:
+#         "../envs/minimap2.yaml"
+#     log:
+#         stdout = "logs/minimap2/{status}/{sample}.out",
+#         stderr = "logs/minimap2/{status}/{sample}.err"
+#     # wildcard_constraints:
+#     #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
+#     shell:
+#         """
+#         minimap2 {params.preset} --junc-bed {input.transcriptome} \
+#             -t {params.align_map_bam_threads} \
+#             {input.genome} {input.reads} | samtools sort \
+#             -@ {params.align_sort_bam_threads} \
+#             -m{params.align_sort_bam_memory_gb}g \
+#             -o {output} > {log.stdout} 2> {log.stderr}
+#         """
 
 
-rule pbmm2_align:
-    priority: 98
-    input:
-        reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",   
-        genome = config["reference_genome"]
-    output:
-        bam = "results/align/{status}/origin/pbmm2_{sample}.aligned.bam"
-    params:
-        preset = "ISOSEQ",  
-        threads = config["align_map_bam_threads"]
-    conda:
-        "../envs/pbmm2.yaml"
-    log:
-        stdout = "logs/pbmm2/{status}/{sample}.out",
-        stderr = "logs/pbmm2/{status}/{sample}.err"
-    # wildcard_constraints:
-    #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
-    shell:
-        """
-        pbmm2 align \
-            --preset {params.preset} \
-            --sort \
-            --num-threads {params.threads} \
-            {input.genome} \
-            {input.reads} \
-            {output.bam} > {log.stdout} 2> {log.stderr}
-        """
+# rule pbmm2_align:
+#     priority: 98
+#     input:
+#         reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",   
+#         genome = config["reference_genome"]
+#     output:
+#         bam = "results/align/{status}/origin/pbmm2_{sample}.aligned.bam"
+#     params:
+#         preset = "ISOSEQ",  
+#         threads = config["align_map_bam_threads"]
+#     conda:
+#         "../envs/pbmm2.yaml"
+#     log:
+#         stdout = "logs/pbmm2/{status}/{sample}.out",
+#         stderr = "logs/pbmm2/{status}/{sample}.err"
+#     # wildcard_constraints:
+#     #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
+#     shell:
+#         """
+#         pbmm2 align \
+#             --preset {params.preset} \
+#             --sort \
+#             --num-threads {params.threads} \
+#             {input.genome} \
+#             {input.reads} \
+#             {output.bam} > {log.stdout} 2> {log.stderr}
+#         """
 
 # rule split_ncigar:
 #     priority: 97

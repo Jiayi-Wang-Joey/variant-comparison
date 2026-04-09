@@ -107,7 +107,7 @@ td$type <- factor(td$type, levels = c("Homopolymer",
 cols <- colorRampPalette(brewer.pal(12, "Paired"))(3)
 gg <- ggplot(td, aes(Subset, Subset.Size, fill = type)) + 
     geom_bar(stat = "identity") +
-    facet_wrap(~type, scales = "free", ncol=2) +
+    facet_wrap(~type, scales = "free", ncol=3) +
     theme_classic() +
     scale_color_manual(values = cols) +
     labs(
@@ -118,6 +118,6 @@ gg <- ggplot(td, aes(Subset, Subset.Size, fill = type)) +
           axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) 
     
     
-ggsave("plts/stratified_region.pdf", gg, height = 15, width=15, units = "cm")
+ggsave("plts/stratified_region.pdf", gg, height = 8, width=18, units = "cm")
 
 

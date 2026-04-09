@@ -42,7 +42,7 @@ dt$Subset <- recode(dt$Subset,
                     "gc85_slop50"     = ">85"
 )
 lvls <- c("<15", "15-20", "20-25", "25-30", "30-55", "55-60",
-    "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
+          "60-65", "65-70", "70-75", "75-80", "80-85", ">85")
 dt$Subset <- factor(dt$Subset, levels = lvls)
 
 shown <- lvls[c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, 
@@ -60,12 +60,12 @@ cols <- c(
     "longcallR-nn" = "#B15928"
 )
 
-snp <- dt[Type=="SNP"]
-idl <- dt[Type=="INDEL"]
 
+dt <- dt[cell_line == "HG002"]
+dt$Type <- factor(dt$Type, levels = c("SNP", "INDEL"))
 aes <- list(geom_point(alpha=0.6),
             geom_line(alpha = 0.6),
-            facet_grid(cell_line ~ platform),
+            facet_grid(Type ~ platform),
             theme_minimal(),
             labs(x = "GC Content (%)", y = "F1 Score", color = "Variant Caller"),
             scale_color_manual(values = cols),
@@ -89,22 +89,16 @@ aes <- list(geom_point(alpha=0.6),
                   axis.title.x = element_text(size = 11),
                   axis.title.y = element_text(size = 11),
                   legend.title = element_text(size = 11),
+                  legend.position = "bottom",
                   axis.text.x = element_text(angle = 45, size = 7,
                                              hjust = 1, vjust = 1)))
 
-p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score, 
+gg <- ggplot(dt, aes(Subset, METRIC.F1_Score, 
                       col=tool,
-                      group = method)) + aes + ggtitle("SNP") 
+                      group = method)) + aes 
 
 
-p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
-                      col=tool,
-                      group = method)) + aes + ggtitle("INDEL") + 
-    theme(legend.position = "none")
-
-gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
-    plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold")) 
 
 
-ggsave(args[[2]], gg, width=32, height=30, units="cm")
+
+ggsave(args[[2]], gg, width=21, height=10, units="cm")

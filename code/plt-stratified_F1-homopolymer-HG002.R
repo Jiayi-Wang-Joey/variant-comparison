@@ -23,25 +23,14 @@ dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS" & !is.na(METRIC.F1_Score)]
 dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype=="*"]
-dt <- dt[grepl("homopolymer", Subset)]
+dt <- dt[grepl("homopolymer", Subset) & !grepl("AT|GC", Subset)]
 dt <- dt[aligner=="minimap2"]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
 dt$Subset <- recode(
     dt$Subset,
-    "SimpleRepeat_homopolymer_4to6_AT_slop5"   = "4–6 AT",
-    "SimpleRepeat_homopolymer_4to6_GC_slop5"   = "4–6 GC",
     "SimpleRepeat_homopolymer_4to6_slop5"      = "4–6",
-    
-    "SimpleRepeat_homopolymer_7to11_AT_slop5"  = "7–11 AT",
-    "SimpleRepeat_homopolymer_7to11_GC_slop5"  = "7–11 GC",
     "SimpleRepeat_homopolymer_7to11_slop5"     = "7–11",
-    
-    "SimpleRepeat_homopolymer_ge12_AT_slop5"   = "≥12 AT",
-    "SimpleRepeat_homopolymer_ge12_GC_slop5"   = "≥12 GC",
     "SimpleRepeat_homopolymer_ge12_slop5"      = "≥12",
-    
-    "SimpleRepeat_homopolymer_ge21_AT_slop5"   = "≥21 AT",
-    "SimpleRepeat_homopolymer_ge21_GC_slop5"   = "≥21 GC",
     "SimpleRepeat_homopolymer_ge21_slop5"      = "≥21"
 )
 
@@ -50,18 +39,17 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
+dt <- dt[cell_line=="HG002"]
 dt$Subset <- factor(
     dt$Subset,
     levels = c(
-        "4–6", "4–6 AT", "4–6 GC",
-        "7–11", "7–11 AT", "7–11 GC",
-        "≥12", "≥12 AT", "≥12 GC",
-        "≥21", "≥21 AT", "≥21 GC"
+        "4–6", 
+        "7–11", 
+        "≥12", 
+        "≥21"
     )
 )
-dt_AT   <- dt[grepl("AT", Subset)]
-dt_GC   <- dt[grepl("GC", Subset)]
-dt_both <- dt[!grepl("AT|GC", Subset)]
+dt$Type <- factor(dt$Type, levels=c("SNP", "INDEL"))
 cols <- c(
     "Clair3-RNA"   = "#A6CEE3",
     "DeepVariant"  = "#52AF43",
@@ -70,12 +58,10 @@ cols <- c(
     "longcallR-nn" = "#B15928"
 )
 .p <- \(dt) {
-    snp <- dt[Type=="SNP"]
-    idl <- dt[Type=="INDEL"]
     
     aes <- list(geom_point(alpha=0.6),
                 geom_line(alpha = 0.6),
-                facet_grid(cell_line ~ platform),
+                facet_grid(Type ~ platform),
                 theme_minimal(),
                 labs(x = "Homopolymer length", y = "F1 Score", color = "Variant Caller"),
                 scale_color_manual(values = cols),
@@ -99,35 +85,15 @@ cols <- c(
                       axis.title.x = element_text(size = 11),
                       axis.title.y = element_text(size = 11),
                       legend.title = element_text(size = 11),
-                     axis.text.x = element_text(angle = 45, size = 7,
-                                                hjust = 1, vjust = 1)))
+                      #aspect.ratio = 1,
+                      axis.text.x = element_text(angle = 45, size = 7,
+                                                 hjust = 1, vjust = 1)))
     
-    p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score, 
+    ggplot(dt, aes(Subset, METRIC.F1_Score, 
                           col=tool,
-                          group = method)) + aes + ggtitle("SNP") 
-    
-    
-    p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
-                          col=tool,
-                          group = method)) + aes + ggtitle("INDEL") + 
-        theme(legend.position = "none")
-    
-    gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
-        plot_annotation(tag_levels = "a") &
-        theme(plot.tag = element_text(face = "bold")) 
-}
+                          group = method)) + aes 
+    }
+gg <- .p(dt)
 
-p1 <- .p(dt_both)
-p2 <- .p(dt_AT)
-p3 <- .p(dt_GC)
+ggsave(args[[2]], gg, width=20, height=7, units="cm")
 
-pdf(args[[2]], width = 12, height = 11)
-
-p1
-p2
-p3
-
-dev.off()
-
-# ggsave(args[[2]], gg, width=32, height=30, units="cm")
-# write.table(dt, "data/results/homopolymers.csv")

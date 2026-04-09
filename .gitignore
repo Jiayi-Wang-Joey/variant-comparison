@@ -14,3 +14,5 @@ docs/*
 arch/**
 tmp/**
 code/arch/**
+log
+help

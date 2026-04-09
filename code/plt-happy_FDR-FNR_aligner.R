@@ -31,12 +31,17 @@ m <- melt(
 td <- data.table::dcast(m, sample + tool + Type + metric ~ aligner, 
                         value.var = "val")
 td[,Type:=factor(Type, levels=c("SNP", "INDEL"))]
-cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(5),
-                 unique(td$tool))
+cols <- c(
+    "Clair3-RNA"   = "#A6CEE3",
+    "DeepVariant"  = "#52AF43",
+    "GATK"         = "#F06C45",
+    "longcallR"    = "#B294C7",
+    "longcallR-nn" = "#B15928"
+)
 td[, sample:=gsub("-Baylor", "", sample)]
 gg <- ggplot(td, aes(minimap2, pbmm2, color=tool, shape=metric)) + 
     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
-    geom_point(alpha=0.8, size=2.5) +
+    geom_point(alpha=0.8, size=3) +
     facet_grid(Type~sample) +
     labs(
         x = "minimap2",

@@ -8,7 +8,8 @@ dependencies:
     - whatshap
     - hapcut2
     - bcftools
-    - samtools   
+    - samtools
+    - HiPhase=1.6.0  
     - htslib
 
 

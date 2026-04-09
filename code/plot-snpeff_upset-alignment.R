@@ -1,5 +1,5 @@
-args <- list(list.files("/Volumes/jiayiwang/variant-comparison/results/SnpEff/",
-pattern = "\\.vcf.gz", full.names = TRUE), "/Volumes/jiayiwang/variant-comparison/plts/snpeff_upset-alignment.pdf")
+# args <- list(list.files("/Volumes/jiayiwang/variant-comparison/results/SnpEff/",
+# pattern = "\\.vcf.gz", full.names = TRUE), "/Volumes/jiayiwang/variant-comparison/plts/snpeff_upset-alignment.pdf")
 
 suppressPackageStartupMessages({
     library(VariantAnnotation)
@@ -41,6 +41,7 @@ cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
             TRUTH == "FN" & QUERY == "FP", "FN",
             default = NA_character_
         )]
+        #dt <- dt[res=="FP"]
         dt$effects <- sub(
             "^[^|]*\\|([^|]+)\\|.*$",
             "\\1",
@@ -80,8 +81,11 @@ cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
     
     up <- merge(mem, m_id, by = "variant_id", all.x = TRUE)
     
-    
-    up2 <- up[!(minimap2_TP & pbmm2_TP)]
+    #up2 <- up
+    #up2 <- up[!(minimap2_TP & pbmm2_TP)]
+    up2 <-  up[(minimap2_FP | pbmm2_FP) & 
+                   !(minimap2_TP | minimap2_FN | pbmm2_TP | pbmm2_FN)]
+    types <- c("minimap2_FP", "pbmm2_FP")
     ComplexUpset::upset(
         up2,
         types,
@@ -103,9 +107,13 @@ cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
         )
     )
 }
-caller <- c("longcallR-nn")
-sample <- c("HG004-Baylor-IsoSeq","HG005-Baylor-IsoSeq", "HG002-Baylor-IsoSeq",
-"HG004-MasSeq", "HG005-MasSeq","HG002-MasSeq")
+# caller <- c("longcallR-nn")
+# sample <- c("HG004-Baylor-IsoSeq","HG005-Baylor-IsoSeq", "HG002-Baylor-IsoSeq",
+# "HG004-MasSeq", "HG005-MasSeq","HG002-MasSeq")
+caller <- c("DeepVariant", "Clair3-RNA", "longcallR", "longcallR-nn", "GATK")
+sample <- c("HG004-MasSeq")
+# sample <- c("HG004-Baylor-IsoSeq","HG005-Baylor-IsoSeq", "HG002-Baylor-IsoSeq",
+# "HG004-MasSeq", "HG005-MasSeq","HG002-MasSeq")
 
 params <- expand.grid(caller, sample)
 ps <- lapply(seq_len(nrow(params)), \(i) {
@@ -114,9 +122,9 @@ ps <- lapply(seq_len(nrow(params)), \(i) {
     pbm <- readVcf(paste0("results/SnpEff/", c,"_origin_pbmm2_", s, "_5.vcf.gz"))
     mmp <- readVcf(paste0("results/SnpEff/", c,"_origin_minimap2_", s, "_5.vcf.gz"))
     tt <- gsub("-Baylor", "", s)
-    .p(mmp, pbm, title=tt, variant_type = "SNP")
+    .p(mmp, pbm, title=c, variant_type = "SNP")
 }) 
-gg <- ps |> wrap_plots(ncol=3) + plot_layout(guide="collect")
+gg <- ps |> wrap_plots(ncol=5) + plot_layout(guide="collect")
 
-ggsave("plts/upset_longcallR-nn.pdf", gg, width=35, height=20, units="cm")
+ggsave("plts/upset_HG004-MasSeq-FPs.pdf", gg, width=35, height=10, units="cm")
 #ggsave(args[[2]], ps, width=35, height=15, units="cm")

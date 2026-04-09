@@ -16,8 +16,12 @@ suppressPackageStartupMessages({
 dt <- rbindlist(lapply(args[[1]], \(f) {
     dt <- fread(f)
     
-    keep <- c("sample","phaser","caller","type","n_actual", "n_phased",
-              "all_switches","all_assessed_pairs","all_switch_rate")
+    keep <- c(
+        "sample","phaser","caller","type",
+        "n_actual","n_phased",
+        "all_switches","all_assessed_pairs",
+        "blockwise_hamming"
+    )
     dt <- dt[, ..keep]
     
     dt_sum <- dt[all_assessed_pairs > 0,
@@ -25,6 +29,10 @@ dt <- rbindlist(lapply(args[[1]], \(f) {
                      all_switches = sum(all_switches),
                      all_assessed_pairs = sum(all_assessed_pairs),
                      mean_switch_rate = sum(all_switches) / sum(all_assessed_pairs),
+                     
+                     blockwise_hamming = sum(blockwise_hamming),
+                     mean_hamming_rate = sum(blockwise_hamming) / sum(all_assessed_pairs),
+                     
                      n_chr_informative = .N
                  ),
                  by = .(sample, phaser, caller, type, n_actual, n_phased)
@@ -42,34 +50,33 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
 
 dt[,method:=paste0(caller, phaser)]
-dt[phaser=="longcallR", phaser:="longcallR*"]
-snp <- dt[type=="SNP" & phaser != "longcallR*"]
+dt[,phaser:=factor(phaser)]
+snp <- dt[type=="SNP" & phaser != "longcallR"]
 all <- dt[type=="all" & !grepl("longcallR", caller)]
-snp_longcallR <- dt[type=="SNP" & phaser == "longcallR*"]
+snp_longcallR <- dt[type=="SNP" & phaser == "longcallR"]
 callers_in_plot <- sort(unique(snp$caller))
 star <- snp_longcallR[
-    , .(sample, phaser, type, platform, all_assessed_pairs, mean_switch_rate, cell_line)
+    , .(sample, phaser, type, platform, all_assessed_pairs, mean_hamming_rate, cell_line)
 ][
     , caller := callers_in_plot[1]
 ]
 star <- star[rep(seq_len(.N), each = length(callers_in_plot))]
 star[, caller := rep(callers_in_plot, times = nrow(snp_longcallR))]
-
-
 cols <- c(
-    "WhatsHap"   = "#1b9e77",
-    "HapCUT2"    = "#d95f02",
-    "longphase"  = "#377eb8",
-    "HiPhase"    = "#e7298a",
-    "longcallR*" = "grey60"
+    "WhatsHap"  = "#66c2a5",
+    "HapCUT2"   = "#fc8d62",
+    "longphase" = "#8da0cb",
+    "HiPhase"   = "#e78ac3",
+    "longcallR" = "grey70"
 )
+
 
 aes <- list(
     geom_point(size=3, alpha = 0.8),
     facet_grid2(caller ~ platform, scales="free"),
     theme_classic(),
     scale_x_continuous(labels = label_scientific(digits = 2)),
-    labs(y = "1 - Switch Error Rate", x = "Number of Assessed Pairs",
+    labs(y = "1 - Hamming Rate", x = "Number of Assessed Pairs",
          shape = "Cell Line", color = "Phaser"),
     theme(panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
           panel.grid.minor = element_blank(),
@@ -97,24 +104,24 @@ aes <- list(
     #scale_color_brewer(palette = "Set2")
     scale_color_manual(values=cols)
 )
-p1 <- ggplot(snp, aes(x = all_assessed_pairs, y = 1 - mean_switch_rate, 
-                     color = phaser, shape = cell_line)) + 
+p1 <- ggplot(snp, aes(x = all_assessed_pairs, y = 1 - mean_hamming_rate, 
+                      color = phaser, shape = cell_line)) + 
     geom_point(
         data = star,
         aes(x = all_assessed_pairs,
-            y = 1 - mean_switch_rate,
+            y = 1 - mean_hamming_rate,
             shape = cell_line,
-            color = "longcallR*"),
+            color = "longcallR"),
         size = 3,
         alpha = 0.8,
         inherit.aes = FALSE
     ) +
-    aes +  ggtitle("SNP")
+    aes + ggtitle("SNP")
 
-p2 <- ggplot(all, aes(x = all_assessed_pairs, y = 1 - mean_switch_rate, 
+p2 <- ggplot(all, aes(x = all_assessed_pairs, y = 1 - mean_hamming_rate, 
                       color = phaser, shape = cell_line)) + aes + 
     guides(color = "none",
-          shape = "none") + ggtitle("ALL")
+           shape = "none") + ggtitle("ALL")
 
 
 # p1 <- p1 + theme(plot.margin = margin(t = 10, r = 10, b = 10, l = 10))

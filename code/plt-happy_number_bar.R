@@ -15,7 +15,7 @@ dt <- rbindlist(res)
 dt <- dt[coverage==5]
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
 dt[,coverage:=factor(coverage, levels = unique(sort(dt$coverage)))]
 dt[,method:=paste(bamtype, aligner, tool, sep=">")]
 dt[, sample_lab := ifelse(grepl("MasSeq|IsoSeq", sample),
@@ -59,7 +59,7 @@ p1 <- ggplot(snp, aes(reorder_within(tool,Count,platform), Count, fill=Category)
     ) +
     ggtitle("SNP")
 
-p2 <- ggplot(idl, aes(reorder_within(tool,Count,platform), Count, fill=Category)) +
+p2 <- ggplot(idl, aes(tool, Count, fill=Category)) +
     geom_col(stat = "identity") +
     geom_text(
         aes(label = Count),

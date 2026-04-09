@@ -30,10 +30,15 @@ sample_levels <- dt[, .(platform = unique(platform)), by = sample][
 ]$sample
 dt[, sample := factor(sample, levels = sample_levels)]
 dt <- dt[coverage==5]
-nk <- length(unique(dt$tool))
-cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
-                 unique(dt$tool))
+cols <- c(
+    "Clair3-RNA"   = "#A6CEE3",
+    "DeepVariant"  = "#52AF43",
+    "GATK"         = "#F06C45",
+    "longcallR"    = "#B294C7",
+    "longcallR-nn" = "#B15928"
+)
 dt[, Type := factor(Type, c("SNP", "INDEL"))]
+dt <- dt[aligner=="minimap2"]
 dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Recall:=NA]
 dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
 # snp <- dt[Type=="SNP"]
@@ -46,7 +51,7 @@ dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
                group = method,
                col = tool,
                shape = cell_line)) +  
-        geom_point(size=2, alpha = 0.8) +  
+        geom_point(size=3, alpha = 0.8) +  
         facet_grid(Type ~ platform) +
         scale_color_manual(values = cols) +  
         labs(
@@ -72,11 +77,16 @@ dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
                 fill = "white",
                 color = "black",
                 linewidth = 0.8),
-            strip.text =  element_markdown(),
+            strip.text =  element_markdown(size=11),
             axis.line = element_line(color = "black", linewidth = 0.3),
             panel.spacing = unit(0, "lines"),
             panel.spacing.x = unit(0, "lines"),
             panel.spacing.y = unit(0, "lines"),
+            axis.text.y = element_text(size = 7),
+            axis.title.x = element_text(size = 11),
+            axis.title.y = element_text(size = 11),
+            legend.title = element_text(size = 11),
+            legend.position = "bottom"
         ) + coord_equal()
         
 }
@@ -84,4 +94,4 @@ dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
 gg <- .p(dt) 
 
                 
-ggsave(args[[2]], gg, width=30, height=12, units="cm")
+ggsave(args[[2]], gg, width=25, height=12, units="cm")

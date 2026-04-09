@@ -13,9 +13,13 @@ res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-nk <- 5
-cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
-                 unique(dt$tool))
+cols <- c(
+    "Clair3-RNA"   = "#A6CEE3",
+    "DeepVariant"  = "#52AF43",
+    "GATK"         = "#F06C45",
+    "longcallR"    = "#B294C7",
+    "longcallR-nn" = "#B15928"
+)
 dt <- dt[!(grepl("longcallR", tool) & Type=="INDEL"),]
 
 dt[,bamtype:=factor(bamtype, levels = c("origin", "transformed"))]
@@ -33,8 +37,8 @@ gg <- ggplot(dt, aes(coverage,
                METRIC.F1_Score, 
                color = tool,
                group = method)) +
-    geom_point(alpha=0.6, size = 1.2) +
-    geom_line(alpha=0.6, aes(linetype=bamtype)) + 
+    geom_point(alpha=0.8, size = 1.5) +
+    geom_line(alpha=0.8, inewidth=0.8, aes(linetype=bamtype)) + 
     theme_classic() +
     facet_grid2(Type ~ platform, scales = "free") + 
     labs(
