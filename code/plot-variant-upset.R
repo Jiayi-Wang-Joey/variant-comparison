@@ -15,7 +15,7 @@ get_dt <- function(vcf, caller) {
     
     dt[, res := fcase(
         QUERY == "FP", "FP",
-        TRUTH == "FN", "FN",
+        #TRUTH == "FN", "FN",
         TRUTH == "TP" | QUERY == "TP", "TP",
         TRUTH == "N", NA_character_,
         default = NA_character_
@@ -26,10 +26,10 @@ get_dt <- function(vcf, caller) {
 }
 
 plot_upset <- function(tech) {
-    clair3 <- readVcf(paste0("results/happy/Clair3-RNA_origin_minimap2_HG004-", tech, "_5.vcf.gz"))
-    dv <- readVcf(paste0("results/happy/DeepVariant_origin_minimap2_HG004-", tech, "_5.vcf.gz"))
-    longcallR <- readVcf(paste0("results/happy/longcallR_origin_minimap2_HG004-", tech, "_5.vcf.gz"))
-    longcallRnn <- readVcf(paste0("results/happy/longcallR-nn_origin_minimap2_HG004-", tech, "_5.vcf.gz"))
+    clair3 <- readVcf(paste0("results/happy/Clair3-RNA_origin_minimap2_HG005-", tech, "_5.vcf.gz"))
+    dv <- readVcf(paste0("results/happy/DeepVariant_origin_minimap2_HG005-", tech, "_5.vcf.gz"))
+    longcallR <- readVcf(paste0("results/happy/longcallR_origin_minimap2_HG005-", tech, "_5.vcf.gz"))
+    longcallRnn <- readVcf(paste0("results/happy/longcallR-nn_origin_minimap2_HG005-", tech, "_5.vcf.gz"))
     
     long_dt <- rbindlist(list(
         get_dt(clair3, "Clair3-RNA"),
@@ -60,36 +60,43 @@ plot_upset <- function(tech) {
             any(res == "FP"), "FP",
             any(res == "FN"), "FN",
             any(res == "TP"), "TP",
-            default = "Other"
+            default = NA_character_
         )
     ), by = variant_id]
     
     plot_dt <- merge(presence_dt, res_dt, by = "variant_id", all.x = TRUE)
-    plot_dt[is.na(res), res := "Other"]
+    plot_dt <- na.omit(plot_dt)
+    # paired_cols <- brewer.pal(12, "Paired")
+    # fill_cols <- c(
+    #     TP = paired_cols[2],
+    #     FP = paired_cols[6],
+    #     FN = paired_cols[4]
+    # )
     
-    paired_cols <- brewer.pal(12, "Paired")
-    fill_cols <- c(
-        TP = paired_cols[2],
-        FP = paired_cols[6],
-        FN = paired_cols[4],
-        Other = "grey70"
-    )
-    
-    upset(
+    ComplexUpset::upset(
         plot_dt,
         intersect = callers,
-        name = "Variants",
         base_annotations = list(
-            "Intersection size" = intersection_size(
-                aes(fill = res)
-            )
+            "Intersection size" =
+                ComplexUpset::intersection_size(
+                    counts = FALSE,
+                    mapping = aes(fill = res)
+                ) +
+                scale_fill_brewer(palette = "Paired") +
+                theme(
+                    panel.grid.major.x = element_blank(),
+                    panel.grid.minor.x = element_blank(),
+                    panel.grid.major.y = element_line(),
+                    panel.grid.minor.y = element_blank()
+                ) +
+                labs(fill = "Result")
         ),
         width_ratio = 0.18,
         min_size = 1
     ) +
-        scale_fill_brewer(palette = "Paired") +
-        ggtitle(paste("HG004 -", tech)) +
+        ggtitle(paste("HG005 -", tech)) +
         theme(
             plot.title = element_text(hjust = 0.5, face = "bold")
         )
+    
 }

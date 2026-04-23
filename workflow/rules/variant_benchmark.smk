@@ -86,7 +86,19 @@ rule happy_benchmark:
             bcftools index -t -f "{input.vcf}"
             rm "{input.vcf}.unsorted"
         fi
-        bcftools view -f PASS -Oz -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz {input.vcf}
+
+        if [ "{wildcards.tool}" = "GATK" ]; then
+            echo "GATK detected → using QUAL>=30" >&2
+            bcftools view -i 'QUAL>=30' -Oz \
+                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz \
+                {input.vcf}
+        else
+            echo "Non-GATK → using FILTER=PASS" >&2
+            bcftools view -f PASS -Oz \
+                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz \
+                {input.vcf}
+        fi
+
         singularity exec \
             --bind /home/jiayiwang/variant-comparison:/home/jiayiwang/variant-comparison \
             /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/hap.py \
