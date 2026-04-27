@@ -77,11 +77,12 @@ PACBIO_SAMPLE = ISOSEQ_SAMPLE + MASSEQ_SAMPLE
 SAMPLE = PACBIO_SAMPLE + ONT_SAMPLE
 
 
-# align = {
-#     "preprocess": preprocess,
-#     "origin": origin,
-#     "transformed": transformed,
-# }
+align = {
+    "preprocess": preprocess,
+    "origin": origin,
+    "transformed": transformed,
+}
+
 TYPE = ["all", "SNP"]          
 phase_tsv = (
     expand(
@@ -106,12 +107,12 @@ phase_tsv = (
 )
 
 eva = {
-    #"qual": qual,
+    "qual": qual,
     "happy": happy,
-    #"transformed": happy_transformed,
-    #"stratified": stratified,
+    "transformed": happy_transformed,
+    "stratified": stratified,
     "phase": phase_tsv,
-    #"snpeff": snpeff
+    "snpeff": snpeff
 }
 
 VAL = eva.keys()
@@ -124,7 +125,7 @@ for val in VAL:
 # SETUP ------------------------------------------------------------------------------
 rule all: 
     input: 
-        #[x for x in align.values()], 
+        [x for x in align.values()], 
         [x for x in eva.values()],
         plt
 
