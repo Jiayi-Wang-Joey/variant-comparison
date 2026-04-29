@@ -14,7 +14,9 @@ snakemake --cores 8 --use-conda
 
 All GIAB raw sequencing files (BAM or FASTQ) are publicly available. Please refer the paper for the links. 
 In addition, all figures can be generated from the Snakemake.
+The output VCFs can be found on [Zenodo](https://zenodo.org/records/19857089).
 
 ### Contact
 If you have any question regarding the code, please contact jiayi.wang2@uzh.ch.
+
 
