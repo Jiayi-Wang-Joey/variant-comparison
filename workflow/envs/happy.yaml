@@ -1,8 +1,9 @@
-name: bcftools
+name: happy
 channels:
   - bioconda
   - conda-forge
-  - defaults
+channel_priority: strict
 dependencies:
-  - bcftools=1.21
-
+  - hap.py=0.3.15
+  - bcftools
+  - rtg-tools

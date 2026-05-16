@@ -70,8 +70,6 @@ rule happy_benchmark:
         ref = config["reference_genome"],
         outdir = "results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}",
         threads = 10 
-    conda:
-        "../envs/happy.yaml"
     log:
         "logs/happy_{tool}_{bamtype}_{aligner}_{sample}_{coverage}.log"
     shell:
@@ -90,20 +88,21 @@ rule happy_benchmark:
         if [ "{wildcards.tool}" = "GATK" ]; then
             echo "GATK detected → using QUAL>=30" >&2
             bcftools view -i 'QUAL>=30' -Oz \
-                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz \
+                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.vcf.gz \
                 {input.vcf}
         else
             echo "Non-GATK → using FILTER=PASS" >&2
             bcftools view -f PASS -Oz \
-                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz \
+                -o tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.vcf.gz \
                 {input.vcf}
         fi
 
         singularity exec \
-            --bind /home/jiayiwang/variant-comparison:/home/jiayiwang/variant-comparison \
+            --bind $(pwd -P):$(pwd -P) \
+            --pwd $(pwd -P) \
             /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/hap.py \
             {params.truth} \
-            tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz  \
+            tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.vcf.gz  \
             -r {params.ref} \
             -f {input.confidence} \
             -T {input.bed} \
@@ -131,7 +130,7 @@ rule happy_benchmark:
             NR==1 {{print $0, "tool", "bamtype", "aligner", "sample", "coverage"}} 
             NR>1 {{print $0, tool, bamtype, aligner, sample, coverage}}'| gzip > {output.roc}
 
-        rm tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz 
+        rm tmp/{wildcards.tool}_{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}_{wildcards.coverage}.vcf.gz
         """
 
 
@@ -140,7 +139,7 @@ rule happy_benchmark:
 rule stratified_benchmark:
     input:
         vcf=rules.happy_benchmark.output.vcf,
-        stratification="/home/jiayiwang/variant-comparison/data/regions/GRCh38-all-stratifications.tsv"
+        stratification="data/regions/GRCh38-all-stratifications.tsv"
     output:
         "results/stratified/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.extended.csv",
     params:
@@ -152,7 +151,7 @@ rule stratified_benchmark:
     shell:
         """
         singularity exec \
-            --bind /home/jiayiwang/variant-comparison:/home/jiayiwang/variant-comparison \
+            --bind $(pwd):$(pwd) \
             /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/qfy.py \
             {input.vcf} \
             -o {params.outdir} \

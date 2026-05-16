@@ -88,34 +88,34 @@ rule longphase:
         tabix -p vcf results/phase/longphase/{wildcards.tool}_origin_minimap2_{wildcards.sample}.vcf.gz
         """
 
-rule longcallR_phase:
-    input:
-        vcf = rules.filter_vcf.output,
-        bam = get_bam,
-        ref = config["reference_genome"]
-    output:
-        "results/phase/longcallR_phase/{tool}_origin_minimap2_{sample}.vcf.gz"
-    params:
-        path = directory("results/phase/longcallR_phase/{tool}_origin_minimap2_{sample}"),
-        platform = get_longcallR_platform,
-        threads = 8
-    log: 
-        "logs/phase_longcallR_{tool}_origin_minimap2_{sample}.log"
-    shell:
-        """
-        mkdir -p {params.path}
-        ~/tools/longcallR/target/release/longcallR --bam-path {input.bam} \
-        --input-vcf {input.vcf} \
-        --ref-path {input.ref} \
-        --preset {params.platform} \
-        --no-bam-output \
-        -t {params.threads} \
-        --output {params.path}/output \
-        > {log} 2>&1
+# rule longcallR_phase:
+#     input:
+#         vcf = rules.filter_vcf.output,
+#         bam = get_bam,
+#         ref = config["reference_genome"]
+#     output:
+#         "results/phase/longcallR_phase/{tool}_origin_minimap2_{sample}.vcf.gz"
+#     params:
+#         path = directory("results/phase/longcallR_phase/{tool}_origin_minimap2_{sample}"),
+#         platform = get_longcallR_platform,
+#         threads = 8
+#     log: 
+#         "logs/phase_longcallR_{tool}_origin_minimap2_{sample}.log"
+#     shell:
+#         """
+#         mkdir -p {params.path}
+#         ~/tools/longcallR/target/release/longcallR --bam-path {input.bam} \
+#         --input-vcf {input.vcf} \
+#         --ref-path {input.ref} \
+#         --preset {params.platform} \
+#         --no-bam-output \
+#         -t {params.threads} \
+#         --output {params.path}/output \
+#         > {log} 2>&1
 
-        bgzip {params.path}/output.vcf
-        mv {params.path}/output.vcf.gz {output}
-        """
+#         bgzip {params.path}/output.vcf
+#         mv {params.path}/output.vcf.gz {output}
+#         """
 
 
 def get_platform_hapcut2(wildcards):

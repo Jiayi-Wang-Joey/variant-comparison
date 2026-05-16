@@ -4,25 +4,24 @@ configfile: "config.yaml"
 R = config["R"]
 
 # WILDCARDS --------------------------------------------------------------------
-ISOSEQ_SAMPLE = ["HG004-Baylor-IsoSeq",
-   "HG005-Baylor-IsoSeq", "HG002-Baylor-IsoSeq"
+ISOSEQ_SAMPLE = ["HG004-Baylor-IsoSeq","HG005-Baylor-IsoSeq", #"HG002-Baylor-IsoSeq"
 ]
-MASSEQ_SAMPLE = ["HG004-MasSeq",
-"HG005-MasSeq","HG002-MasSeq"
+MASSEQ_SAMPLE = [#"HG004-MasSeq","HG005-MasSeq",#"HG002-MasSeq"
 ]
 PACBIO_SAMPLE = ISOSEQ_SAMPLE + MASSEQ_SAMPLE
 ONT_SAMPLE = [
-    "HG004-cDNAxR09", "HG004-cDNAxR10",  "HG004-dRNA004" ,"HG004-dRNA002",
+    "HG004-cDNAxR09", "HG004-cDNAxR10",  "HG004-dRNA004" ,
+    "HG004-dRNA002",
     "HG005-cDNAxR09", "HG005-cDNAxR10",  "HG005-dRNA004" ,"HG005-dRNA002",
     "HG002-cDNAxR10", "HG002-dRNA004", "HG002-dRNA002", "HG002-cDNAxR09"
     ] 
 
 BAM = ["origin"] # transformation of bam
-PACBIO_ALIGNER = [ "minimap2", "pbmm2"] # pacbio aligner
+PACBIO_ALIGNER = [ "minimap2"] # pacbio aligner
 ONT_ALIGNER = ["minimap2"] # ONT aligner
 COVERAGE = [1, 5, 10, 30, 50, 100] # coverage
-TOOL = ["Clair3-RNA", "DeepVariant", "longcallR",  "longcallR-nn", "GATK"] # variant caller
-
+TOOL = [ "isoLASER"] # variant caller
+# "Clair3-RNA", "DeepVariant", "longcallR",  "longcallR-nn", "GATK",
 ISOSEQ_STATUS = ["raw", "preprocessed"]
 
 # RULES --------------------------------------------------------------------
@@ -36,12 +35,10 @@ include: "workflow/rules/phasing_benchmark.smk"
 # RESULTS --------------------------------------------------------------------
 
 #### Alignment 
-preprocess = expand("data/preprocessed/{sample}.bam", sample=ISOSEQ_SAMPLE)
+preprocess = expand("data/preprocessed/{sample}.bam", sample=ISOSEQ_SAMPLE + MASSEQ_SAMPLE)
 
 origin = (expand("results/align/{status}/origin/{aligner}_{sample}.aligned.bam",
-                aligner=PACBIO_ALIGNER, sample=ISOSEQ_SAMPLE, status=ISOSEQ_STATUS) + 
-         expand("results/align/raw/origin/{aligner}_{sample}.aligned.bam",
-                aligner=PACBIO_ALIGNER, sample=MASSEQ_SAMPLE) + 
+                aligner=PACBIO_ALIGNER, sample=ISOSEQ_SAMPLE+MASSEQ_SAMPLE, status=ISOSEQ_STATUS) + 
          expand("results/align/raw/origin/{aligner}_{sample}.aligned.bam",
                 aligner=ONT_ALIGNER, sample=ONT_SAMPLE))
 
@@ -107,12 +104,12 @@ phase_tsv = (
 )
 
 eva = {
-    "qual": qual,
+    #"qual": qual,
     "happy": happy,
-    "transformed": happy_transformed,
-    "stratified": stratified,
-    "phase": phase_tsv,
-    "snpeff": snpeff
+    #"transformed": happy_transformed,
+    #"stratified": stratified,
+    #"phase": phase_tsv,
+    #snpeff": snpeff
 }
 
 VAL = eva.keys()
@@ -125,7 +122,7 @@ for val in VAL:
 # SETUP ------------------------------------------------------------------------------
 rule all: 
     input: 
-        [x for x in align.values()], 
+        #[x for x in align.values()], 
         [x for x in eva.values()],
         plt
 

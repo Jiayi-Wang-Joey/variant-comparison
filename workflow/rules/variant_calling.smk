@@ -312,4 +312,132 @@ rule longcallR_nn_merge:
         ) >> {log} 2>&1
         """
 
+rule extract_transcriptome:
+    input:
+        gtf=config["gtfgz"],
+        ref=config["reference_genome"]
+    output:
+        fa="data/isolaser/transcriptome.fa",
+        db=directory("data/isolaser/transcriptome.db"),
+        gtf="data/isolaser/filtered.gtf.gz",
+        tbi="data/isolaser/filtered.gtf.gz.tbi"
+    log:
+        "logs/extract_transcriptome.log"
+    shell:
+        """
+        zcat {input.gtf} | awk '$1 !~ /\./' | bgzip > {output.gtf}
+        tabix -p gff {output.gtf}
+        isolaser_convert_gtf_to_fasta -g {output.gtf} -f {input.ref} -o {output.fa} 2>> {log}
+        mkdir -p {output.db}
+        isolaser_extract_exon_parts -g {output.gtf} -o {output.db} 2>> {log}
+        """
+
+
+rule isolaser_realign_annotate:
+    input:
+        bam=lambda wildcards:
+            f"results/align/preprocessed/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam"
+            if wildcards.sample in ISOSEQ_SAMPLE + MASSEQ_SAMPLE
+            else f"results/align/raw/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam",
+        tx="data/isolaser/transcriptome.fa",
+        gtf="data/isolaser/filtered.gtf.gz",
+    output:
+        bam="results/variant/isoLASER/realign/{bamtype}/{aligner}_{sample}.anno.bam"
+    log:
+        "logs/isolaser_annotate_{bamtype},{aligner},{sample}.log"
+    threads: 25
+    params:
+        sam="tmp/{bamtype}/{aligner}_{sample}.aligned.sam",
+        unsorted="results/variant/isoLASER/realign/{bamtype}/{aligner}_{sample}.anno.unsorted.bam",
+        threads=25,
+    resources:
+        mem_mb=64000,
+        tmpdir="/data/jiayiwang/variant-comparison/tmp",
+    conda:
+        "../envs/isolaser.yaml"
+    shell:
+        """
+        mkdir -p $(dirname {params.sam})
+        mkdir -p $(dirname {output.bam})
+
+        samtools view -h {input.bam} \
+            | awk '/^@/ || $10 ~ /^[ACGTNacgtn]+$/' \
+            | samtools bam2fq - \
+            | minimap2 -t {params.threads} -ax splice:hq -uf --MD {input.tx} - \
+            > {params.sam} 2>> {log}
+
+        filtered_bam="tmp/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.filtered.bam"
+        samtools view -h {input.bam} \
+            | awk '/^@/ || $10 ~ /^[ACGTNacgtn]+$/' \
+            | samtools view -bS - > "$filtered_bam"
+        samtools index "$filtered_bam"
+
+        isolaser_annotate \
+            -b "$filtered_bam" \
+            -t {params.sam} \
+            -g {input.gtf} \
+            -o {params.unsorted} 2>> {log}
+
+        rm -f "$filtered_bam" "$filtered_bam.bai"
+
+        samtools sort -@ {params.threads} -m 4G \
+            -T {resources.tmpdir}/{wildcards.sample}_sort \
+            -o {output.bam} {params.unsorted} 2>> {log}
+
+        samtools index {output.bam} 2>> {log}
+
+        rm -f {params.sam} {params.unsorted}
+        """
+
+def get_isoLASER_platform(wildcards):
+    sample = wildcards.sample.lower()
+    for key, platform in {
+        "masseq": "PacBio",
+        "isoseq": "PacBio",
+        "cdna": "Nanopore",
+        "drna": "Nanopore"
+    }.items():
+        if key in sample:
+            return platform
+    raise ValueError(f"Unrecognized platform for sample '{wildcards.sample}'")
+
+rule run_isoLASER:
+    priority: 95
+    input:
+        bam=rules.isolaser_realign_annotate.output.bam,
+        gtf="data/isolaser/filtered.gtf.gz",
+        ref=config["reference_genome"],
+        db="data/isolaser/transcriptome.db"
+    output:
+        vcfgz="results/variant/isoLASER/{bamtype}_{aligner}_{sample}.vcf.gz",
+        tbi="results/variant/isoLASER/{bamtype}_{aligner}_{sample}.vcf.gz.tbi"
+    log:
+        "logs/run_isoLASER_{bamtype},{aligner},{sample}.log"
+    conda:
+        "../envs/isolaser.yaml"
+    threads: 25
+    resources:
+        mem_mb=64000
+    params:
+        threads=25,
+        platform = get_isoLASER_platform,
+        prefix="results/variant/isoLASER/{bamtype}_{aligner}_{sample}/calls"
+    shell:
+        """
+        mkdir -p $(dirname {params.prefix})
+        isolaser \
+            -b {input.bam} \
+            -o {params.prefix} \
+            -t {input.db} \
+            -f {input.ref} \
+            --DP=0 \
+            -n {params.threads} \
+            --platform={params.platform} \
+            > {log} 2>&1
+        bcftools view -v snps,indels {params.prefix}.gvcf \
+            | bcftools norm -m -any \
+            | bcftools view -e 'GT="0/0"' -Oz \
+            -o {output.vcfgz}
+        tabix -p vcf {output.vcfgz}
+        """
 
