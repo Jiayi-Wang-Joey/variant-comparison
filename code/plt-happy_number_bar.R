@@ -28,6 +28,7 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
 dt <- dt[aligner=="minimap2"]
+dt <- dt[cell_line=="HG002a", cell_line:="HG002"]
 td <- melt(
     dt,
     id.vars = c("Type", "Filter", "aligner", "tool", "cell_line", "platform"),
@@ -36,6 +37,7 @@ td <- melt(
     value.name = "Count"
 )
 td[, Category := tstrsplit(Category, "\\.", keep = 2)]
+td <- unique(td)
 snp <- td[Type=="SNP"]
 idl <- td[Type=="INDEL"]
 p1 <- ggplot(snp, aes(reorder_within(tool,Count,platform), Count, fill=Category)) +
@@ -43,7 +45,7 @@ p1 <- ggplot(snp, aes(reorder_within(tool,Count,platform), Count, fill=Category)
     geom_text(
         aes(label = Count),
         position = position_stack(vjust = 0.5),
-        size = 1
+        size = 0.8
     ) +
     facet_grid2( cell_line ~ platform, scales="free") +
     scale_x_reordered() +
@@ -57,14 +59,14 @@ p1 <- ggplot(snp, aes(reorder_within(tool,Count,platform), Count, fill=Category)
         axis.text.x = element_text(angle = 45, hjust = 1),
         strip.text = element_markdown()
     ) +
-    ggtitle("SNP")
+    ggtitle("SNV")
 
 p2 <- ggplot(idl, aes(tool, Count, fill=Category)) +
     geom_col(stat = "identity") +
     geom_text(
         aes(label = Count),
         position = position_stack(vjust = 0.5),
-        size = 1
+        size = 0.8
     ) +
     facet_grid2( cell_line ~ platform, scales="free") + 
     theme_classic() +
@@ -83,7 +85,7 @@ p2 <- ggplot(idl, aes(tool, Count, fill=Category)) +
 gg <-   p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(face = "bold")) 
-
+write.table(dt, "data/results/number_calls.csv")
 ggsave(args[[2]], gg, width=20, height=25, units="cm")
 
     

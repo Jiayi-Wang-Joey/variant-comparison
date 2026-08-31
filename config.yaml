@@ -1,5 +1,5 @@
 reference_genome: "data/genome/GCA_000001405.15_GRCh38_no_alt_analysis_set_maskedGRC_exclusions_v2.fasta"
-transcriptome_bed: "/home/jiayiwang/data/reference/genome/gencode.v47.chr_patch_hapl_scaff.annotation.bed"
+transcriptome_bed: "/home/jiayiwang/data/reference/gencode.v47.chr_patch_hapl_scaff.annotation.bed"
 exon_bed: "/home/jiayiwang/data/reference/genome/exons.bed"
 gtf: "/home/jiayiwang/data/reference/gencode.v47.chr_patch_hapl_scaff.annotation.sorted.gtf"
 gtfgz: "/home/jiayiwang/data/reference/gencode.v47.chr_patch_hapl_scaff.annotation.sorted.gtf.gz"

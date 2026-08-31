@@ -1,5 +1,5 @@
-# args <- list(list.files("/Volumes/jiayiwang/variant-comparison/results/happy/",
-# pattern = "\\.summary.csv$", full.names = TRUE), "/Volumes/jiayiwang/variant-comparison/plts/happy_F1-bar.pdf")
+#args <- list(list.files("~/omni/jiayiwang/data/variant-comparison/results/happy/",
+#pattern = "\\.summary.csv$", full.names = TRUE), "/Volumes/jiayiwang/variant-comparison/plts/happy_F1-bar.pdf")
 suppressPackageStartupMessages({
     library(ggplot2)
     library(data.table)
@@ -26,25 +26,33 @@ dt <- rbindlist(res)
                               paste0("<span style='color:#54278f;'>", platform, "</span>"),
                               paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
     dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
-    #dt <- dt[cell_line %in% c("HG002", "HG005")]
-    dt <- dt[cell_line %in% c("HG004")]
     dt <- dt[aligner=="minimap2"]
+    dt[cell_line=="HG002a", cell_line:="HG002"]
+    saveRDS(dt, "data/results/happy.csv")
+    dt <- dt[cell_line != "HG002"]
     snp <- dt[Type=="SNP"]
     idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
+    idl <- idl[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER")]
     cols <- c(
         "Clair3-RNA"   = "#A6CEE3",
         "DeepVariant"  = "#52AF43",
         "GATK"         = "#F06C45",
         "longcallR"    = "#B294C7",
-        "longcallR-nn" = "#B15928"
+        "longcallR-nn" = "#B15928",
+        "isoLASER" = "#FDBF6F"
     )
-    .p <- \(dt, title) {
+    .p <- \(dt, title, truth_labels) {
         ggplot(dt, aes(coverage, 
                         METRIC.F1_Score, 
                         color = tool,
                         group = method)) +
             geom_point(alpha=0.8, size = 1.5) +
             geom_line(alpha=0.8, linewidth=0.8) + 
+            geom_text(data = truth_labels,
+                aes(x = coverage, y = 1.1, label = paste0(TRUTH.TOTAL)),
+                inherit.aes = FALSE,
+                angle = 30, hjust = 0.5, vjust = 1.3,
+                size = 2, color = "grey30") +
             theme_classic() +
             facet_grid2( cell_line ~ platform, scales = "free") + 
             labs(
@@ -78,8 +86,12 @@ dt <- rbindlist(res)
             )  +
             ggtitle(title)
     }
-    p1 <- .p(snp, "SNP") + theme(legend.position = "none")
-    p2 <- .p(idl, "INDEL") + theme(legend.position = "none")
+    lb1 <- snp[Type=="SNP", .(TRUTH.TOTAL = TRUTH.TOTAL[1]),
+                   by = .(coverage, cell_line, platform)]
+    lb2 <- idl[Type=="INDEL", .(TRUTH.TOTAL = TRUTH.TOTAL[1]),
+                by = .(coverage, cell_line, platform)]
+    p1 <- .p(snp, "SNP", lb1) #+ theme(legend.position = "none")
+    p2 <- .p(idl, "INDEL", lb2) + theme(legend.position = "none")
     
     
     p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
@@ -90,6 +102,6 @@ dt <- rbindlist(res)
 gg <- .f("PASS", "F1 score - PASS only")
 
 
-ggsave(args[[2]], gg, width=20, height=15, units="cm")
+ggsave(args[[2]], gg, width=30, height=25, units="cm")
 
-
+#ggsave("omni/data/jiayiwang/variant-comparison/plts/happy-HG002.pdf", gg, width=22, height=12, units="cm")

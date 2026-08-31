@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
 
 #res <- lapply(args[[1]], fread, header=TRUE)
 #res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
-cols <- c("Filter", "METRIC.F1_Score", "coverage", "Subset", "Subtype",
+cols <- c("Filter", "METRIC.F1_Score", "TRUTH.TOTAL", "coverage", "Subset", "Subtype",
           "sample", "aligner", "tool", "bamtype", "Type", "Subset.Size")
 res <- lapply(args[[1]], function(f) {
     dt <- fread(f, header = TRUE)
@@ -39,26 +39,30 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
-dt <- dt[cell_line=="HG002"]
+dt[cell_line == "HG002a", cell_line := "HG002"]
+dt <- dt[cell_line=="HG004"]
+dt <- dt[!(Type == "INDEL" & grepl("dRNA|cDNA", platform) & tool == "isoLASER")]
 dt$Subset <- factor(
     dt$Subset,
     levels = c(
-        "4–6", 
-        "7–11", 
-        "≥12", 
+        "4–6",
+        "7–11",
+        "≥12",
         "≥21"
     )
 )
-dt$Type <- factor(dt$Type, levels=c("SNP", "INDEL"))
+dt$Type <- factor(dt$Type, levels=c("SNP", "INDEL"), labels=c("SNV", "INDEL"))
 cols <- c(
     "Clair3-RNA"   = "#A6CEE3",
     "DeepVariant"  = "#52AF43",
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
-    "longcallR-nn" = "#B15928"
+    "longcallR-nn" = "#B15928",
+    "isoLASER"     = "#FDBF6F"
 )
 .p <- \(dt) {
-    
+    lb <- dt[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]), by = .(Subset, Type, platform)]
+
     aes <- list(geom_point(alpha=0.6),
                 geom_line(alpha = 0.6),
                 facet_grid(Type ~ platform),
@@ -85,15 +89,21 @@ cols <- c(
                       axis.title.x = element_text(size = 11),
                       axis.title.y = element_text(size = 11),
                       legend.title = element_text(size = 11),
-                      #aspect.ratio = 1,
+                      legend.position = "none",
+                      aspect.ratio = 1,
                       axis.text.x = element_text(angle = 45, size = 7,
                                                  hjust = 1, vjust = 1)))
     
-    ggplot(dt, aes(Subset, METRIC.F1_Score, 
+    ggplot(dt, aes(Subset, METRIC.F1_Score,
                           col=tool,
-                          group = method)) + aes 
+                          group = method)) + aes +
+        geom_text(data = lb,
+            aes(x = Subset, y = 1.1, label = TRUTH.TOTAL),
+            inherit.aes = FALSE,
+            angle = 30, hjust = 0.5, vjust = 1.3,
+            size = 2, color = "grey30")
     }
 gg <- .p(dt)
 
-ggsave(args[[2]], gg, width=20, height=7, units="cm")
+ggsave(args[[2]], gg, width=24, height=9, units="cm")
 

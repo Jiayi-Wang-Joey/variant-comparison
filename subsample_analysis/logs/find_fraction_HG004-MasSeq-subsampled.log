@@ -1,0 +1,25 @@
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+***** WARNING: File subsample_analysis/tmp/find_fraction_HG004-MasSeq-subsampled/exons.bed has inconsistent naming convention for record:
+GL000008.2	HAVANA	exon	83332	83545	.	+	.	gene_id "ENSG00000296732.1"; transcript_id "ENST00000741402.1"; gene_type "lncRNA"; gene_name "ENSG00000296732"; transcript_type "lncRNA"; transcript_name "ENST00000741402"; exon_number 1; exon_id "ENSE00004078666.1"; level 2; tag "Ensembl_canonical"; tag "TAGENE";
+
+Chosen fraction: 0.4375 (best diff seen: 1861371, target: 262751256)

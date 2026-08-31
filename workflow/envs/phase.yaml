@@ -4,12 +4,10 @@ channels:
     - conda-forge
     - defaults
 dependencies:
-    - python=3.9
-    - whatshap
     - hapcut2
     - bcftools
     - samtools
-    - HiPhase=1.6.0  
+    - HiPhase=1.6.0
     - htslib
 
 

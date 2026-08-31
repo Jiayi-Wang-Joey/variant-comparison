@@ -1,0 +1,10 @@
+name: phasing-benchmark
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - bcftools
+    - pysam
+    - whatshap
+    - biopython
