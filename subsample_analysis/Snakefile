@@ -1,0 +1,152 @@
+import json
+import itertools
+
+configfile: "config.yaml"
+
+# WILDCARDS --------------------------------------------------------------------
+SOURCE_SAMPLE = "HG004-MasSeq"
+NEW_SAMPLE = "HG004-MasSeq-subsampled"  # used only to name the shared fraction-search output
+REF_SAMPLE = "HG004-dRNA004"
+COVERAGE = [1, 5, 10, 30, 50, 100]
+TARGET_COVERAGE = 5
+SEEDS = [1, 2, 3, 4, 5]  # independent subsample replicates, all at the one fraction found below
+NEW_SAMPLES = [f"HG004-MasSeq-subsampled-seed{s}" for s in SEEDS]
+
+
+STRAT_BEDS = {}
+with open("data/regions/GRCh38-all-stratifications.tsv") as _fh:
+    for _line in _fh:
+        _name, _path = _line.rstrip("\n").split("\t")
+        STRAT_BEDS[_name] = "data/regions/" + _path
+
+CONTEXT_BINS = {
+    "GC content": [
+        "gc15_slop50", "gc15to20_slop50", "gc20to25_slop50", "gc25to30_slop50",
+        "gc30to55_slop50", "gc55to60_slop50", "gc60to65_slop50", "gc65to70_slop50",
+        "gc70to75_slop50", "gc75to80_slop50", "gc80to85_slop50", "gc85_slop50",
+    ],
+    "Homopolymer": [
+        "SimpleRepeat_homopolymer_4to6_slop5", "SimpleRepeat_homopolymer_7to11_slop5",
+        "SimpleRepeat_homopolymer_ge12_slop5", "SimpleRepeat_homopolymer_ge21_slop5",
+    ],
+    "Tandem Repeat": [
+        "AllTandemRepeats_le50bp_slop5", "AllTandemRepeats_51to200bp_slop5",
+        "AllTandemRepeats_201to10000bp_slop5", "AllTandemRepeats_ge10001bp_slop5",
+    ],
+}
+CONTEXT_SUBSETS = [s for bins in CONTEXT_BINS.values() for s in bins]
+
+# RULES --------------------------------------------------------------------
+include: "../workflow/rules/variant_calling.smk"
+include: "../workflow/rules/variant_benchmark.smk"
+
+
+rule find_fraction:
+    priority: 100
+    input:
+        bam=f"results/align/raw/origin/minimap2_{SOURCE_SAMPLE}.aligned.bam",
+        gtf=config["gtf"],
+        confidence="data/truth/beds/HG004.bed",
+        target_tsv=f"results/beds/raw/summary/{REF_SAMPLE}_{TARGET_COVERAGE}.tsv",
+    output:
+        fraction=f"subsample_analysis/results/fraction/{NEW_SAMPLE}.fraction.txt",
+        log=f"subsample_analysis/results/fraction/{NEW_SAMPLE}.search_log.tsv",
+    params:
+        seed=42,
+        coverage=TARGET_COVERAGE,
+        max_iter=8,
+        tol=0.01,
+        img="/home/jiayiwang/tools/mosdepth-0.3.3--h37c5b7d_2.simg",
+        tmpdir=f"subsample_analysis/tmp/find_fraction_{NEW_SAMPLE}",
+        threads=8,
+    conda:
+        "../workflow/envs/bcftools.yaml"
+    log:
+        f"subsample_analysis/logs/find_fraction_{NEW_SAMPLE}.log",
+    shell:
+        """
+        if [ ! -f {input.bam}.bai ]; then
+            samtools index {input.bam};
+        fi
+        bash subsample_analysis/scripts/find_fraction.sh \
+            {input.bam} \
+            {params.coverage} \
+            {input.gtf} \
+            {input.confidence} \
+            {input.target_tsv} \
+            {params.img} \
+            {params.seed} \
+            {params.max_iter} \
+            {params.tol} \
+            {params.threads} \
+            {params.tmpdir} \
+            {output.fraction} \
+            {output.log} \
+            > {log} 2>&1
+        """
+
+
+rule subsample_bam:
+    priority: 99
+    input:
+        bam=f"results/align/raw/origin/minimap2_{SOURCE_SAMPLE}.aligned.bam",
+        fraction=rules.find_fraction.output.fraction,
+    output:
+        bam="results/align/raw/origin/minimap2_HG004-MasSeq-subsampled-seed{seed}.aligned.bam",
+        bai="results/align/raw/origin/minimap2_HG004-MasSeq-subsampled-seed{seed}.aligned.bam.bai",
+    params:
+        threads=8,
+    resources:
+        mem_mb=8000,
+    conda:
+        "../workflow/envs/samtools.yaml"
+    wildcard_constraints:
+        seed=r"\d+",
+    log:
+        "subsample_analysis/logs/subsample_bam_seed{seed}.log",
+    shell:
+        """
+        frac=$(cat {input.fraction})
+        param=$(awk -v s={wildcards.seed} -v f=$frac 'BEGIN{{printf "%.4f", s+f}}')
+        samtools view -s $param -@ {params.threads} -b {input.bam} -o {output.bam} > {log} 2>&1
+        samtools index {output.bam}
+        """
+
+
+# RESULTS --------------------------------------------------------------------
+SAMPLES = [SOURCE_SAMPLE, REF_SAMPLE] + NEW_SAMPLES
+
+bases = expand(
+    "results/beds/raw/summary/{sample}_{coverage}.tsv",
+    sample=SAMPLES, coverage=COVERAGE,
+)
+
+happy = expand(
+    "results/happy/Clair3-RNA_origin_minimap2_{sample}_{coverage}.summary.csv",
+    sample=SAMPLES, coverage=COVERAGE,
+)
+
+rule all:
+    input:
+        "subsample_analysis/plts/subsample_figure.pdf"
+
+
+rule plot_figure:
+    priority: 0
+    input:
+        bases=bases,
+        happy=happy,
+    output:
+        "subsample_analysis/plts/subsample_figure.pdf"
+    params:
+        bases=lambda wc, input: ";".join(input.bases),
+        happy=lambda wc, input: ";".join(input.happy),
+    conda:
+        "../workflow/envs/r_env.yaml"
+    log:
+        "subsample_analysis/logs/plot_figure.log",
+    shell:
+        """
+        Rscript subsample_analysis/code/plt-subsample_figure.R \
+            '{params.bases}' '{params.happy}' {output} > {log} 2>&1
+        """

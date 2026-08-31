@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
     library(RColorBrewer)
 })
 
-cols <- c("Filter", "METRIC.F1_Score", "coverage", "Subset", "Subtype",
+cols <- c("Filter", "METRIC.F1_Score", "TRUTH.TOTAL", "coverage", "Subset", "Subtype",
           "sample", "aligner", "tool", "bamtype", "Type")
 res <- lapply(args[[1]], function(f) {
     dt <- fread(f, header = TRUE)
@@ -52,16 +52,20 @@ dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
 dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
+dt[cell_line == "HG002a", cell_line := "HG002"]
 cols <- c(
     "Clair3-RNA"   = "#A6CEE3",
     "DeepVariant"  = "#52AF43",
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
-    "longcallR-nn" = "#B15928"
+    "longcallR-nn" = "#B15928",
+    "isoLASER" = "#FDBF6F"
 )
-
+dt <- dt[!(Type == "INDEL" & grepl("dRNA|cDNA", platform) & tool == "isoLASER")]
 snp <- dt[Type=="SNP"]
 idl <- dt[Type=="INDEL"]
+lb1 <- snp[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]), by = .(Subset, cell_line, platform)]
+lb2 <- idl[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]), by = .(Subset, cell_line, platform)]
 
 aes <- list(geom_point(alpha=0.6),
             geom_line(alpha = 0.6),
@@ -89,17 +93,30 @@ aes <- list(geom_point(alpha=0.6),
                   axis.title.x = element_text(size = 11),
                   axis.title.y = element_text(size = 11),
                   legend.title = element_text(size = 11),
-                  axis.text.x = element_text(angle = 45, size = 7,
+                  aspect.ratio = 1,
+                  axis.text.x = element_text(angle = 45, size = 6,
                                              hjust = 1, vjust = 1)))
 
-p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score, 
+p1 <- ggplot(snp, aes(Subset, METRIC.F1_Score,
                       col=tool,
-                      group = method)) + aes + ggtitle("SNP") 
+                      group = method)) + aes +
+    geom_text(data = lb1,
+        aes(x = Subset, y = 1.1, label = TRUTH.TOTAL),
+        inherit.aes = FALSE,
+        angle = 30, hjust = 0.5, vjust = 1.3,
+        size = 1.3, color = "grey30") +
+    ggtitle("SNV")
 
 
-p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score, 
+p2 <- ggplot(idl, aes(Subset, METRIC.F1_Score,
                       col=tool,
-                      group = method)) + aes + ggtitle("INDEL") + 
+                      group = method)) + aes +
+    geom_text(data = lb2,
+        aes(x = Subset, y = 1.1, label = TRUTH.TOTAL),
+        inherit.aes = FALSE,
+        angle = 30, hjust = 0.5, vjust = 1.3,
+        size = 1.3, color = "grey30") +
+    ggtitle("INDEL") +
     theme(legend.position = "none")
 
 gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
@@ -107,4 +124,4 @@ gg <- p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
     theme(plot.tag = element_text(face = "bold")) 
 
 
-ggsave(args[[2]], gg, width=32, height=30, units="cm")
+ggsave(args[[2]], gg, width=25, height=28, units="cm")

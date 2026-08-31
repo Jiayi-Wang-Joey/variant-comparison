@@ -35,12 +35,16 @@ cols <- c(
     "DeepVariant"  = "#52AF43",
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
-    "longcallR-nn" = "#B15928"
+    "longcallR-nn" = "#B15928",
+    "isoLASER" = "#FDBF6F"
 )
 dt[, Type := factor(Type, c("SNP", "INDEL"))]
 dt <- dt[aligner=="minimap2"]
-dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Recall:=NA]
-dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
+dt <- dt[cell_line=="HG002a", cell_line :="HG002"]
+dt <- dt[cell_line == "HG002"]
+dt <- dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Recall:=NA]
+dt <- dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
+dt <- dt[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER" & Type=="INDEL")]
 # snp <- dt[Type=="SNP"]
 # idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
 

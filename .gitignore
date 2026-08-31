@@ -16,3 +16,9 @@ tmp/**
 code/arch/**
 log
 help
+snpEff_genes.txt
+snpEff_summary.html
+subsample_analysis/plts
+tables/
+test_isolaser/
+code/table*

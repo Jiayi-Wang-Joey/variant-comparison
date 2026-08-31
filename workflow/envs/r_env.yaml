@@ -1,7 +1,17 @@
 name: r_env
 channels:
-          - conda-forge
+  - conda-forge
 dependencies:
-          - r=4.2.3
-          - r-utils
+  - r-base>=4.3
+  - r-r.utils
+  - r-ggplot2
+  - r-data.table
+  - r-ggh4x
+  - r-scales
+  - r-dplyr
+  - r-ggtext
+  - r-tidytext
+  - r-patchwork
+  - r-rcolorbrewer
+  - r-tidyverse
 

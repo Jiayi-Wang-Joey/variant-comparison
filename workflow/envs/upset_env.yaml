@@ -1,0 +1,13 @@
+name: upset_env
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - r-base>=4.3
+    - r-data.table
+    - r-ggplot2
+    - r-rcolorbrewer
+    - r-patchwork
+    - bioconductor-variantannotation
+    - r-complexupset

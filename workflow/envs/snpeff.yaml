@@ -1,0 +1,8 @@
+name: snpeff
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - snpeff=5.2
+    - htslib

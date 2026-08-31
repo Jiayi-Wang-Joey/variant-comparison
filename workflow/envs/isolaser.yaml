@@ -1,0 +1,14 @@
+name: isolaser
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - minimap2=2.28
+  - samtools=1.21
+  - bcftools=1.21
+  - pip
+  - pip:
+    - isolaser==0.0.3
+    - scipy==1.10.1

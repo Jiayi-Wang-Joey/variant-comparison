@@ -9,7 +9,7 @@ suppressPackageStartupMessages({
     library(RColorBrewer)
 })
 
-cols <- c("Filter", "METRIC.F1_Score", "coverage", "Subset", "Subtype",
+cols <- c("Filter", "METRIC.F1_Score", "TRUTH.TOTAL", "coverage", "Subset", "Subtype",
           "sample", "aligner", "tool", "bamtype", "Type")
 res <- lapply(args[[1]], function(f) {
     dt <- fread(f, header = TRUE)
@@ -24,6 +24,8 @@ dt <- dt[Subtype == "*"]
 dt <- dt[Subset=="refseq_cds"]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
 
+
+
 .f <- \(filter, title) {
     dt[,coverage:=factor(coverage, levels = unique(sort(dt$coverage)))]
     dt[,method:=paste(bamtype, aligner, tool, sep=">")]
@@ -36,18 +38,32 @@ dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
                             paste0("<span style='color:#54278f;'>", platform, "</span>"),
                             paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
     dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
+    dt[cell_line == "HG002a", cell_line := "HG002"]
+    dt <- dt[aligner=="minimap2"]
     snp <- dt[Type=="SNP"]
     idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
     nk <- length(unique(dt$tool))
-    cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk),
-                     unique(dt$tool))
+    cols <- c(
+        "Clair3-RNA"   = "#A6CEE3",
+        "DeepVariant"  = "#52AF43",
+        "GATK"         = "#F06C45",
+        "longcallR"    = "#B294C7",
+        "longcallR-nn" = "#B15928",
+        "isoLASER" = "#FDBF6F"
+    )
     .p <- \(dt, title) {
-        ggplot(dt, aes(coverage, 
-                       METRIC.F1_Score, 
+        truth_labels <- dt[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]), by = .(coverage, cell_line, platform)]
+        ggplot(dt, aes(coverage,
+                       METRIC.F1_Score,
                        color = tool,
                        group = method)) +
-            geom_point(alpha=0.6, size = 1.2) +
-            geom_line(alpha=0.6) + 
+            geom_point(alpha=0.8, size = 1.5) +
+            geom_line(alpha=0.8, linewidth=0.8) +
+            geom_text(data = truth_labels,
+                aes(x = coverage, y = 1.1, label = paste0(TRUTH.TOTAL)),
+                inherit.aes = FALSE,
+                angle = 30, hjust = 0.5, vjust = 1.3,
+                size = 2, color = "grey30") +
             theme_classic() +
             facet_grid2( cell_line ~ platform, scales = "free") + 
             labs(
@@ -68,11 +84,16 @@ dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
                     fill = "white",
                     color = "black",
                     linewidth = 0.8),
-                strip.text =  element_markdown(),
+                strip.text =  element_markdown(size=11),
                 axis.line = element_line(color = "black", linewidth = 0.3),
                 panel.spacing = unit(0, "lines"),
                 panel.spacing.x = unit(0, "lines"),
-                panel.spacing.y = unit(0, "lines")
+                panel.spacing.y = unit(0, "lines"),
+                axis.text.y = element_text(size = 7),
+                axis.title.x = element_text(size = 11),
+                axis.title.y = element_text(size = 11),
+                legend.title = element_text(size = 11),
+                aspect.ratio = 1
             )  +
             ggtitle(title)
     }

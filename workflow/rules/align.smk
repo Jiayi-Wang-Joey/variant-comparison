@@ -5,6 +5,8 @@ rule preprocess:
         primer="data/primer/primer_isoseq.fasta"
     output: "data/preprocessed/{sample}.bam"
     conda: "../envs/preprocessing.yaml"
+    resources:
+        mem_mb=8000,
     log:
         stderr="logs/preprocess/{sample}.stderr"
     shell: 
@@ -44,35 +46,35 @@ def minimap2_preset(wildcards):
         raise ValueError(f"Cannot determine minimap2 preset from sample name: {wildcards.sample}")
 
 
-rule minimap2_align:
-    priority: 98
-    input:
-        reads = rules.bam2fq.output,
-        transcriptome = config["transcriptome_bed"],
-        genome = config["reference_genome"],
-    output:
-        "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
-    params:
-        align_map_bam_threads = config["align_map_bam_threads"],
-        align_sort_bam_threads = config["align_sort_bam_threads"],
-        align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
-        preset = minimap2_preset
-    conda:
-        "../envs/minimap2.yaml"
-    log:
-        stdout = "logs/minimap2/{status}/{sample}.out",
-        stderr = "logs/minimap2/{status}/{sample}.err"
-    # wildcard_constraints:
-    #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
-    shell:
-        """
-        minimap2 {params.preset} --junc-bed {input.transcriptome} \
-            -t {params.align_map_bam_threads} \
-            {input.genome} {input.reads} | samtools sort \
-            -@ {params.align_sort_bam_threads} \
-            -m{params.align_sort_bam_memory_gb}g \
-            -o {output} > {log.stdout} 2> {log.stderr}
-        """
+# rule minimap2_align:
+#     priority: 98
+#     input:
+#         reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",
+#         transcriptome = config["transcriptome_bed"],
+#         genome = config["reference_genome"],
+#     output:
+#         "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
+#     params:
+#         align_map_bam_threads = config["align_map_bam_threads"],
+#         align_sort_bam_threads = config["align_sort_bam_threads"],
+#         align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
+#         preset = minimap2_preset
+#     resources:
+#         mem_mb=45000,
+#     conda:
+#         "../envs/minimap2.yaml"
+#     log:
+#         stdout = "logs/minimap2/{status}/{sample}.out",
+#         stderr = "logs/minimap2/{status}/{sample}.err"
+#     shell:
+#         """
+#         minimap2 {params.preset} --junc-bed {input.transcriptome} \
+#             -t {params.align_map_bam_threads} \
+#             {input.genome} {input.reads} | samtools sort \
+#             -@ {params.align_sort_bam_threads} \
+#             -m{params.align_sort_bam_memory_gb}g \
+#             -o {output} > {log.stdout} 2> {log.stderr}
+#         """
 
 
 rule pbmm2_align:
@@ -83,15 +85,15 @@ rule pbmm2_align:
     output:
         bam = "results/align/{status}/origin/pbmm2_{sample}.aligned.bam"
     params:
-        preset = "ISOSEQ",  
+        preset = "ISOSEQ",
         threads = config["align_map_bam_threads"]
+    resources:
+        mem_mb=24000,
     conda:
         "../envs/pbmm2.yaml"
     log:
         stdout = "logs/pbmm2/{status}/{sample}.out",
         stderr = "logs/pbmm2/{status}/{sample}.err"
-    # wildcard_constraints:
-    #     status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
     shell:
         """
         pbmm2 align \
@@ -102,6 +104,36 @@ rule pbmm2_align:
             {input.reads} \
             {output.bam} > {log.stdout} 2> {log.stderr}
         """
+
+rule minimap2_nojunc_align:
+    priority: 98
+    input:
+        reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",
+        genome = config["reference_genome"],
+    output:
+        "results/align/{status}/origin/minimap2-nojunc_{sample}.aligned.bam"
+    params:
+        align_map_bam_threads = config["align_map_bam_threads"],
+        align_sort_bam_threads = config["align_sort_bam_threads"],
+        align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
+        preset = minimap2_preset
+    resources:
+        mem_mb=45000,
+    conda:
+        "../envs/minimap2.yaml"
+    log:
+        stdout = "logs/minimap2_nojunc/{status}/{sample}.out",
+        stderr = "logs/minimap2_nojunc/{status}/{sample}.err"
+    shell:
+        """
+        minimap2 {params.preset} \
+            -t {params.align_map_bam_threads} \
+            {input.genome} {input.reads} | samtools sort \
+            -@ {params.align_sort_bam_threads} \
+            -m{params.align_sort_bam_memory_gb}g \
+            -o {output} > {log.stdout} 2> {log.stderr}
+        """
+
 
 rule split_ncigar:
     priority: 97
@@ -115,12 +147,16 @@ rule split_ncigar:
         "logs/split_ncigar_reads_{status}_{aligner}_{sample}.log"
     params:
         threads = 10
+    resources:
+        mem_mb=18000,
+        tmpdir="/data/jiayiwang/variant-comparison/tmp",
     wildcard_constraints:
-        status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
+        status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw"
     shell:
         """
-        singularity exec --bind /home/jiayiwang/miniconda3/envs/snakemake/bin/python:/usr/bin/python {input.img} /gatk/gatk --java-options \
-        "-Xmx16G -XX:+UseParallelGC -XX:ParallelGCThreads={params.threads} -Djava.util.concurrent.ForkJoinPool.common.parallelism={params.threads} -Djava.io.tmpdir=/home/jiayiwang/tmp1" SplitNCigarReads \
+        mkdir -p {resources.tmpdir}
+        singularity exec --bind $(pwd -P):$(pwd -P) --pwd $(pwd -P) --bind /home/jiayiwang/miniconda3/envs/snakemake/bin/python:/usr/bin/python {input.img} /gatk/gatk --java-options \
+        "-Xmx16G -XX:+UseParallelGC -XX:ParallelGCThreads={params.threads} -Djava.util.concurrent.ForkJoinPool.common.parallelism={params.threads} -Djava.io.tmpdir={resources.tmpdir}" SplitNCigarReads \
             -R {input.ref} \
             -I {input.bam} \
             -O {output} \
@@ -138,8 +174,10 @@ rule flag_correction:
         "logs/flag_correction_{status}_{aligner}_{sample}.log"
     params:
         threads = 5
+    resources:
+        mem_mb=8000,
     wildcard_constraints:
-        status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw" 
+        status="raw|preprocessed" if "{sample}" in ISOSEQ_SAMPLE else "raw"
     shell:
         """
         Rscript /home/jiayiwang/tools/lrRNAseqVariantCalling/tools/flagCorrection.r \
@@ -159,6 +197,8 @@ rule bam_quality:
     output:
         stat = "results/align/{status}/quality/{aligner}_{sample}.tsv",
         cov = "results/align/{status}/coverage/{aligner}_{sample}.tsv"
+    conda:
+        "../envs/samtools.yaml"
     log:
         stdout = "logs/quality/{status}_{aligner}_{sample}.log",
         stderr = "logs/quality/{status}_{aligner}_{sample}.err"
@@ -172,4 +212,43 @@ rule bam_quality:
             {{metric = $2; value = $3; annotation = ($0 ~ /#/) ? substr($0, index($0, "#")) : ""; print sample, status, aligner, metric, value, annotation}}' >> {output.stat}) \
         | grep ^COV | cut -f 2- | \
             awk -v s="{wildcards.sample}" -v t="{wildcards.status}" -v a="{wildcards.aligner}" 'BEGIN {{OFS="\\t"}} {{print s,t,a,$1,$2,$3}}' >> {output.cov}
+        """
+
+
+rule bam_supplementary_stats:
+    priority: 80
+    input:
+        bam="results/align/{status}/origin/{aligner}_{sample}.aligned.bam"
+    output:
+        "results/align/{status}/supplementary_stats/{aligner}_{sample}.tsv"
+    conda:
+        "../envs/samtools.yaml"
+    log:
+        stdout="logs/supplementary_stats/{status}_{aligner}_{sample}.log",
+        stderr="logs/supplementary_stats/{status}_{aligner}_{sample}.err"
+    shell:
+        r"""
+        echo -e "sample\tstatus\taligner\tmetric\tvalue" > {output}
+
+        total_reads=$(samtools view {input.bam} | cut -f1 | sort -u | wc -l)
+
+        supplementary_alignments=$(samtools view -c -f 2048 {input.bam})
+        secondary_alignments=$(samtools view -c -f 256 {input.bam})
+
+        reads_with_supplementary=$(samtools view -f 2048 {input.bam} | cut -f1 | sort -u | wc -l)
+        reads_with_secondary=$(samtools view -f 256 {input.bam} | cut -f1 | sort -u | wc -l)
+
+        supplementary_read_rate=$(awk -v a=$reads_with_supplementary -v b=$total_reads 'BEGIN{{if(b>0) printf "%.6f",100*a/b; else print "NA"}}')
+
+        secondary_read_rate=$(awk -v a=$reads_with_secondary -v b=$total_reads 'BEGIN{{if(b>0) printf "%.6f",100*a/b; else print "NA"}}')
+
+        cat <<EOF >> {output}
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	total_reads	$total_reads
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	supplementary_alignments	$supplementary_alignments
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	secondary_alignments	$secondary_alignments
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	reads_with_supplementary	$reads_with_supplementary
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	reads_with_secondary	$reads_with_secondary
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	supplementary_read_rate	$supplementary_read_rate
+{wildcards.sample}	{wildcards.status}	{wildcards.aligner}	secondary_read_rate	$secondary_read_rate
+EOF
         """
