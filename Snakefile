@@ -26,28 +26,6 @@ COVERAGE = [1, 5, 10, 30, 50, 100] # coverage
 TOOL = [ "Clair3-RNA",  "longcallR-nn", "DeepVariant", "longcallR",  "isoLASER", "GATK"] 
 ISOSEQ_STATUS = ["raw", "preprocessed"]
 
-# STRAT_BEDS = {}
-# with open("data/regions/GRCh38-all-stratifications.tsv") as _fh:
-#     for _line in _fh:
-#         _name, _path = _line.rstrip("\n").split("\t")
-#         STRAT_BEDS[_name] = "data/regions/" + _path
-
-# CONTEXT_BINS = {
-#     "GC content": [
-#         "gc15_slop50", "gc15to20_slop50", "gc20to25_slop50", "gc25to30_slop50",
-#         "gc30to55_slop50", "gc55to60_slop50", "gc60to65_slop50", "gc65to70_slop50",
-#         "gc70to75_slop50", "gc75to80_slop50", "gc80to85_slop50", "gc85_slop50",
-#     ],
-#     "Homopolymer": [
-#         "SimpleRepeat_homopolymer_4to6_slop5", "SimpleRepeat_homopolymer_7to11_slop5",
-#         "SimpleRepeat_homopolymer_ge12_slop5", "SimpleRepeat_homopolymer_ge21_slop5",
-#     ],
-#     "Tandem Repeat": [
-#         "AllTandemRepeats_le50bp_slop5", "AllTandemRepeats_51to200bp_slop5",
-#         "AllTandemRepeats_201to10000bp_slop5", "AllTandemRepeats_ge10001bp_slop5",
-#     ],
-# }
-# CONTEXT_SUBSETS = [s for bins in CONTEXT_BINS.values() for s in bins]
 
 # RULES --------------------------------------------------------------------
 include: "workflow/rules/align.smk"
@@ -125,7 +103,7 @@ SAMPLE = PACBIO_SAMPLE + ONT_SAMPLE
 align = {
     #"preprocess": preprocess,
     "origin": origin,
-    #"transformed": transformed,
+    "transformed": transformed,
 }
 
 TYPE = ["all", "SNP"]          
@@ -186,18 +164,16 @@ phase_block_tsv = (
 )
 
 eva = {
-    #"qual": qual,
+    "qual": qual,
     "bases": bases,
     "reads": reads,
     "happy": happy,
     "rna_editing": rna_editing,
     "happy-chr20": happy_chr20,
-    #"transformed": happy_transformed,
+    "transformed": happy_transformed,
     "stratified": stratified,
-    #"phase": phase_tsv,
-    #"phaseblocks": phase_block_tsv,
     "phasecombined": phase_tsv + phase_block_tsv,
-    #"snpeff": snpeff
+    "snpeff": snpeff
 }
 
 VAL = eva.keys()

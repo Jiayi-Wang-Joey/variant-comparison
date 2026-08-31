@@ -12,11 +12,7 @@ TARGET_COVERAGE = 5
 SEEDS = [1, 2, 3, 4, 5]  # independent subsample replicates, all at the one fraction found below
 NEW_SAMPLES = [f"HG004-MasSeq-subsampled-seed{s}" for s in SEEDS]
 
-# genomic-context stratification bins (subset name -> GIAB stratification bed).
-# Not used by any rule this workflow actually requests, but variant_benchmark.smk
-# references CONTEXT_SUBSETS eagerly in a wildcard_constraints (rule
-# callable_bases_context), so it must exist as a module-level name before the
-# `include:` below -- copied verbatim from the root Snakefile.
+
 STRAT_BEDS = {}
 with open("data/regions/GRCh38-all-stratifications.tsv") as _fh:
     for _line in _fh:
