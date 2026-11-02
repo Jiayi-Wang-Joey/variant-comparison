@@ -21,7 +21,7 @@ dt <- rbindlist(res)
     dt[,method:=paste(bamtype, aligner, tool, sep=">")]
 
     dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
-    dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
+    dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
     dt <- dt[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER" & Type == "INDEL")]
     dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                             paste0("<span style='color:#54278f;'>", platform, "</span>"),
@@ -38,7 +38,8 @@ dt <- rbindlist(res)
         "GATK"         = "#F06C45",
         "longcallR"    = "#B294C7",
         "longcallR-nn" = "#B15928",
-        "isoLASER" = "#FDBF6F"
+        "isoLASER" = "#FDBF6F",
+        "NanoTS"   = "#E05A8A"
     )
     .p <- \(dt) {
         lb <- dt[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]),

@@ -23,7 +23,7 @@ PACBIO_ALIGNER = ["minimap2", "pbmm2"] # pacbio aligner, minimap2-nojunc
 ONT_ALIGNER = ["minimap2"] # ONT aligner, minimap2-nojunc
 HG004 = [s for s in ONT_SAMPLE + PACBIO_SAMPLE if "HG004" in s]
 COVERAGE = [1, 5, 10, 30, 50, 100] # coverage
-TOOL = [ "Clair3-RNA",  "longcallR-nn", "DeepVariant", "longcallR",  "isoLASER", "GATK"] 
+TOOL = [ "Clair3-RNA",  "longcallR-nn", "DeepVariant", "longcallR",  "isoLASER", "GATK", "NanoTS"] 
 ISOSEQ_STATUS = ["raw", "preprocessed"]
 
 
@@ -33,6 +33,9 @@ include: "workflow/rules/variant_calling.smk"
 include: "workflow/rules/variant_benchmark.smk"
 include: "workflow/rules/phasing.smk"
 include: "workflow/rules/phasing_benchmark.smk"
+include: "workflow/rules/revision/common_region.smk"
+include: "workflow/rules/revision/vaf_stratified.smk"
+include: "workflow/rules/revision/rna_editing_masked.smk"
 
 
 # RESULTS --------------------------------------------------------------------
@@ -50,10 +53,9 @@ origin = expand("results/align/{status}/origin/{aligner}_{sample}.aligned.bam",
                   aligner="minimap2-nojunc", sample=HG004)
 
 transformed = expand("results/align/{status}/transformed/minimap2_{sample}.aligned.bam", 
-    sample=ISOSEQ_SAMPLE, status=ISOSEQ_STATUS) + \
-    expand("results/align/raw/transformed/minimap2_{sample}.aligned.bam",
-             sample=MASSEQ_SAMPLE) + \
-    expand("results/align/raw/transformed/minimap2_{sample}.aligned.bam", sample=ONT_SAMPLE)
+    sample=[s for s in ISOSEQ_SAMPLE if "HG004" in s], status=ISOSEQ_STATUS) + \
+    expand("results/align/raw/transformed/minimap2_{sample}.aligned.bam", 
+    sample=[s for s in ONT_SAMPLE + MASSEQ_SAMPLE if "HG004" in s])
 
 qual = expand("results/align/{status}/quality/{aligner}_{sample}.tsv", aligner=PACBIO_ALIGNER, sample=ISOSEQ_SAMPLE, status=ISOSEQ_STATUS) + \
     expand("results/align/raw/quality/{aligner}_{sample}.tsv", aligner=PACBIO_ALIGNER, sample=MASSEQ_SAMPLE) + \
@@ -69,39 +71,55 @@ happy = expand("results/happy/{tool}_origin_{aligner}_{sample}_{coverage}.summar
    expand("results/happy/{tool}_origin_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL,  aligner=ONT_ALIGNER, sample=ONT_SAMPLE, coverage=COVERAGE) + \
     expand("results/happy/{tool}_origin_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL,  aligner=ONT_ALIGNER, sample=ONT_SAMPLE, coverage=COVERAGE) + \
     expand("results/happy/{tool}_origin_minimap2-nojunc_{sample}_{coverage}.summary.csv",
-       tool=[t for t in TOOL if t != "GATK"], sample=HG004, coverage=COVERAGE)
+       tool=[t for t in TOOL if t != "GATK"], sample=HG004, coverage=COVERAGE) 
 
 
-happy_transformed = expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL, aligner=PACBIO_ALIGNER, sample=PACBIO_SAMPLE, coverage=COVERAGE, bamtype=BAM) + \
-   expand("results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.summary.csv", tool=TOOL,  aligner=ONT_ALIGNER, sample=ONT_SAMPLE, coverage=COVERAGE, bamtype=BAM)
-
+happy_transformed = expand("results/happy/{tool}_transformed_minimap2_{sample}_{coverage}.summary.csv",
+    tool=["NanoTS"], sample=HG004, coverage=COVERAGE)
 
 stratified = expand("results/stratified/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.extended.csv", tool=TOOL,  aligner="minimap2", sample=PACBIO_SAMPLE, bamtype=BAM, coverage=5) + \
     expand("results/stratified/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.extended.csv", tool=TOOL,  aligner="minimap2", sample=ONT_SAMPLE, bamtype=BAM, coverage=5)
 
-# context_bases = expand("results/beds/context/{sample}_{coverage}_{subset}.tsv",
-#     sample=HG004, coverage=5, subset=CONTEXT_SUBSETS)
+
 
 snpeff = expand("results/SnpEff/{tool}_origin_{aligner}_{sample}_5.vcf.gz",  tool=TOOL,  aligner=PACBIO_ALIGNER, sample=PACBIO_SAMPLE, bamtype=BAM) + \
     expand("results/SnpEff/{tool}_origin_{aligner}_{sample}_5.vcf.gz",  tool=TOOL, aligner=ONT_ALIGNER, sample=ONT_SAMPLE, bamtype=BAM)
 
+# hap.py after removing REDIportal sites
+happy_redimasked = expand("results/happy_redimasked/{tool}_origin_minimap2_{sample}_{coverage}.summary.csv",
+    tool=[t for t in TOOL if t != "GATK"], sample=PACBIO_SAMPLE + ONT_SAMPLE, coverage=COVERAGE)
+
 rna_editing = expand("results/rna_editing/{tool}_origin_minimap2_{sample}_{coverage}.tsv", tool=TOOL, sample=PACBIO_SAMPLE + ONT_SAMPLE, coverage=COVERAGE) + \
-      expand("results/rna_editing/spectrum/{tool}_origin_minimap2_{sample}_{coverage}.tsv", tool=TOOL, sample=PACBIO_SAMPLE + ONT_SAMPLE, coverage=COVERAGE) #+ \
+      expand("results/rna_editing/spectrum/{tool}_origin_minimap2_{sample}_{coverage}.tsv", tool=TOOL, sample=PACBIO_SAMPLE + ONT_SAMPLE, coverage=COVERAGE)
+
+redimasked = ["results/happy_redimasked/combined_SNP.csv"]
+rna_editing = rna_editing + redimasked
 
 happy_chr20 = expand("results/happy_chr20/{tool}_origin_minimap2_{sample}_{coverage}.tsv",
     tool=TOOL, sample=["HG004-MasSeq", "HG005-MasSeq"], coverage=COVERAGE)
+
+# hap.py on common region (standard BED ∩ isoLASER BED)
+happy_common = expand("results/happy_common/{tool}_origin_minimap2_{sample}_{coverage}.summary.csv",
+    tool=TOOL, sample=HG004, coverage=COVERAGE)
+bases_common = expand("results/beds/common/summary/{sample}_{coverage}.tsv", sample=PACBIO_SAMPLE + ONT_SAMPLE, coverage=COVERAGE)
+happy_common_standard = expand("results/happy/{tool}_origin_minimap2_{sample}_{coverage}.summary.csv",
+    tool=TOOL, sample=HG004, coverage=COVERAGE)
+
+# recall/precision by pileup VAF
+vaf = expand("results/vaf/labels/{tool}_minimap2_{sample}_5.tsv",
+    tool=TOOL, sample=PACBIO_SAMPLE + ONT_SAMPLE)
 
 ISOSEQ_SAMPLE = [s for s in ISOSEQ_SAMPLE if "HG002" in s or "HG005" in s]
 MASSEQ_SAMPLE = [s for s in MASSEQ_SAMPLE if "HG002" in s or "HG005" in s]
 ONT_SAMPLE    = [s for s in ONT_SAMPLE    if "HG002" in s or "HG005" in s]
 PHASER = ["HiPhase", "WhatsHap", "longphase", "HapCUT2"] 
-TOOL = ["Clair3-RNA","DeepVariant", "longcallR-nn"]
+TOOL = ["Clair3-RNA","DeepVariant", "longcallR-nn", "NanoTS"]
 PACBIO_SAMPLE = ISOSEQ_SAMPLE + MASSEQ_SAMPLE
 SAMPLE = PACBIO_SAMPLE + ONT_SAMPLE
 
 
 align = {
-    #"preprocess": preprocess,
+    "preprocess": preprocess,
     "origin": origin,
     "transformed": transformed,
 }
@@ -165,18 +183,33 @@ phase_block_tsv = (
 
 eva = {
     "qual": qual,
-    "bases": bases,
+    "bases": bases + bases_common,
     "reads": reads,
     "happy": happy,
     "rna_editing": rna_editing,
+    "redimasked": redimasked,
     "happy-chr20": happy_chr20,
+    "happy_common": happy_common + happy_common_standard,
+    "vaf": vaf,
     "transformed": happy_transformed,
     "stratified": stratified,
     "phasecombined": phase_tsv + phase_block_tsv,
-    "snpeff": snpeff
+     "snpeff": snpeff
 }
 
 VAL = eva.keys()
+
+rule revision_common_beds:
+    input: expand("results/beds/common/{sample}_minimap2_{coverage}.bed", sample=HG004, coverage=COVERAGE)
+
+rule revision_common:
+    input: happy_common
+
+rule revision_vaf:
+    input: vaf
+
+rule revision_redimasked:
+    input: happy_redimasked
 
 plt = []
 for val in VAL:

@@ -52,7 +52,7 @@ dt[, cell_line := factor(sapply(strsplit(sample, "-"), head, 1))]
 dt[,method:=paste0(caller, phaser)]
 dt[,phaser:=factor(phaser)]
 snp <- dt[type=="SNP" & phaser != "longcallR"]
-all <- dt[type=="all" & !grepl("longcallR", caller)]
+all <- dt[type=="all" & !grepl("longcallR|NanoTS", caller)]
 snp_longcallR <- dt[type=="SNP" & phaser == "longcallR"]
 callers_in_plot <- sort(unique(snp$caller))
 star <- snp_longcallR[
@@ -129,8 +129,8 @@ p2 <- ggplot(all, aes(x = all_assessed_pairs, y = 1 - mean_hamming_rate,
 
 
 gg <- (p1 / p2) +
-    plot_layout(guides = "collect", widths = c(1, 1), heights = c(1.5,1)) +
+    plot_layout(guides = "collect", widths = c(1, 1), heights = c(2, 1)) +
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(face = "bold"))
 
-ggsave(args[[2]], gg, width=22, height=22, units="cm")
+ggsave(args[[2]], gg, width=22, height = 27, units="cm")

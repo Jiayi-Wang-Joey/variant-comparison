@@ -19,7 +19,7 @@ res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype == "*"]
 keep_subsets <- c(
     #"AllTandemRepeatsandHomopolymers_slop5",
@@ -62,7 +62,8 @@ cols <- c(
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER"     = "#FDBF6F"
+    "isoLASER"     = "#FDBF6F",
+    "NanoTS"       = "#E05A8A"
 )
 
 snp <- dt[Type=="SNP"]

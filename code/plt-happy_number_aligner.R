@@ -7,6 +7,29 @@ suppressPackageStartupMessages({
     library(ggtext)
 })
 
+# y-positions for stacked-bar count labels, nudged apart to avoid overlap
+add_label_pos <- function(dt, by, scale_by = by, min_gap_frac = 0.08) {
+    dt <- copy(dt)
+    setorderv(dt, c(by, "Category"))
+    dt[, ymax := rev(cumsum(rev(Count))), by = by]
+    dt[, ymin := ymax - Count]
+    dt[, ymid := (ymin + ymax) / 2]
+    dt[, total := sum(Count), by = by]
+    dt[, scale_ref := max(total), by = scale_by]
+    dt[, label_y := {
+        o <- order(ymid)
+        y <- ymid[o]
+        mg <- scale_ref[1] * min_gap_frac
+        if (length(y) > 1) {
+            for (i in 2:length(y)) if (y[i] - y[i - 1] < mg) y[i] <- y[i - 1] + mg
+        }
+        out <- numeric(length(y))
+        out[o] <- y
+        out
+    }, by = by]
+    dt
+}
+
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
@@ -15,7 +38,7 @@ dt <- dt[
         Filter == "PASS" &
         bamtype == "origin" &
         !is.na(METRIC.F1_Score) &
-        !(grepl("longcallR", tool) & Type == "INDEL") &
+        !(grepl("longcallR|NanoTS", tool) & Type == "INDEL") &
         grepl("MasSeq|IsoSeq", sample) &
         !grepl("^HG002-", sample) &
         aligner %in% c("minimap2", "pbmm2")
@@ -35,37 +58,21 @@ td <- unique(td)
 saveRDS(td, "data/results/aligner.rds")
 snp <- td[Type=="SNP"]
 idl <- td[Type=="INDEL"]
-# p1 <- ggplot(snp, aes(aligner, Count, fill=Category)) +
-#     geom_col(stat = "identity") +
-#     geom_text(
-#         aes(label = Count),
-#         position = position_stack(vjust = 0.5),
-#         size = 1.5
-#     ) +
-#     facet_grid2(tool ~ sample, scales="free") +
-#     scale_x_reordered() +
-#     theme_classic() +
-#     labs(y = "Total", x = "Variant caller") +
-#     scale_fill_brewer(palette = "Paired") +
-#     theme(
-#         panel.border = element_rect(colour = "black", 
-#                                     fill = NA, 
-#                                     linewidth = 0.5),
-#         axis.text.x = element_text(angle = 45, hjust = 1),
-#         strip.text = element_markdown()
-#     ) +
-#     ggtitle("SNP")
+
+snp_lab <- add_label_pos(snp[Category %in% c("TP","FN","FP")],
+                          by = c("tool", "sample", "aligner"), scale_by = "tool")
+idl_lab <- add_label_pos(idl[Category %in% c("TP","FN","FP")],
+                          by = c("tool", "sample", "aligner"), scale_by = "tool")
+
 p1 <- ggplot() +
     geom_col(
         data = snp[Category %in% c("TP","FN","FP")],
         aes(aligner, Count, fill = Category)
     ) +
     geom_text(
-        data = snp[Category %in% c("TP","FN","FP")],
-        aes(aligner, Count, label = Count, group = Category),
-        position = position_stack(vjust = 0.5),
-        #position = position_fill(vjust = 0.5),
-        size = 1
+        data = snp_lab,
+        aes(aligner, label_y, label = Count),
+        size = 2.4
     ) +
     geom_text(
         data = merge(
@@ -77,19 +84,19 @@ p1 <- ggplot() +
         ),
         aes(aligner, Total + 5000,
             label = sprintf("%.2f", F1)),
-        size = 1.5,
+        size = 2.6,
         fontface = "bold"
     ) +
     facet_grid2(tool ~ sample, scales = "free") +
     scale_fill_brewer(palette = "Paired") +
     scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-    theme_classic() +
+    theme_classic(base_size = 13) +
     theme(
         panel.border = element_rect(colour = "black",
                                     fill = NA,
                                     linewidth = 0.5),
         axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text = element_markdown()
+        strip.text = element_markdown(size = 10)
     ) +
     labs(y = "Total", x = "Variant caller") +
     ggtitle("SNV")
@@ -100,10 +107,9 @@ p2 <- ggplot() +
         aes(aligner, Count, fill = Category)
     ) +
     geom_text(
-        data = idl[Category %in% c("TP","FN","FP")],
-        aes(aligner, Count, label = Count, group=Category),
-        position = position_stack(vjust = 0.5),
-        size = 1
+        data = idl_lab,
+        aes(aligner, label_y, label = Count),
+        size = 2.4
     ) +
     geom_text(
         data = merge(
@@ -115,27 +121,26 @@ p2 <- ggplot() +
         ),
         aes(aligner, Total + 1000,
             label = sprintf("%.2f", F1)),
-        size = 1.5,
+        size = 2.6,
         fontface = "bold"
     ) +
     facet_grid2(tool ~ sample, scales = "free") +
     scale_fill_brewer(palette = "Paired") +
     scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-    theme_classic() +
+    theme_classic(base_size = 13) +
     theme(
         panel.border = element_rect(colour = "black",
                                     fill = NA,
                                     linewidth = 0.5),
         axis.text.x = element_text(angle = 45, hjust = 1),
-        strip.text = element_markdown()
+        strip.text = element_markdown(size = 10)
     ) +
     labs(y = "Total", x = "Variant caller") +
     ggtitle("INDEL")
 
-gg <-   p1 + p2 + plot_layout(ncol = 1, guides = "collect") +
-    plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold")) 
-
-ggsave(args[[2]], gg, width=22, height=35, units="cm")
+pdf(args[[2]], width = 24 / 2.54, height = 24 / 2.54)
+print(p1)
+print(p2)
+dev.off()
 
 

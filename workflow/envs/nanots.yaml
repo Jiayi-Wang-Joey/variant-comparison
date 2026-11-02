@@ -1,0 +1,21 @@
+name: nanots
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - pytorch
+  - scipy
+  - pysam
+  - numpy
+  - pandas
+  - scikit-learn
+  - progressbar
+  - minimap2
+  - samtools>=1.20
+  - whatshap
+  - git
+  - pip
+  - pip:
+    - git+https://github.com/Xinglab/NanoTS.git@d29e4c956d6a7ed99cfffffcdd0b869774019976
