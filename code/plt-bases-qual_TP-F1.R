@@ -5,7 +5,14 @@ suppressPackageStartupMessages({
     library(patchwork)
 })
 
-happy <- readRDS("data/results/happy.csv")
+happy_files <- list.files("results/happy", "^[^_]+_origin_minimap2_.*_[0-9]+\\.summary\\.csv$", full.names = TRUE)
+happy <- rbindlist(lapply(happy_files, fread), fill = TRUE)
+happy <- happy[Filter == "PASS" & !is.na(METRIC.F1_Score) & bamtype == "origin" & aligner == "minimap2" &
+               coverage %in% c(1, 5, 10, 30, 50, 100)]
+happy <- happy[!grepl("subsampled|BCM|jurkat|Jurkat|WTC11|HG002[bc]|-copy", sample)]
+happy <- happy[!(sample %in% c("HG002-Baylor-IsoSeq", "HG002-MasSeq", "HG002-cDNAxR09", "HG002-cDNAxR10", "HG002-dRNA002",
+                               "HG004-Baylor", "HG005-Baylor"))]
+happy <- unique(happy)
 
 pal <- c(
     "dRNA002" = "#fff7bc",
@@ -23,9 +30,8 @@ add_tech <- \(dt) {
     dt
 }
 
-# longcallR/longcallR-nn don't call INDELs; isoLASER only calls INDELs for PacBio (IsoSeq/MasSeq)
 filter_indel_tools <- \(dt) {
-    dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
+    dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
     dt <- dt[!(tool == "isoLASER" & Type == "INDEL" & !tech %in% c("IsoSeq", "MasSeq"))]
     dt
 }
@@ -33,6 +39,8 @@ filter_indel_tools <- \(dt) {
 common_theme <- list(
     theme_classic(),
     scale_color_manual(values = pal, breaks = names(pal)),
+    scale_shape_manual(values = c("Clair3-RNA" = 16, "DeepVariant" = 17, "GATK" = 15, "isoLASER" = 3,
+                                  "longcallR" = 7, "longcallR-nn" = 8, "NanoTS" = 4)),
     theme(
         panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
         panel.grid.minor = element_blank(),

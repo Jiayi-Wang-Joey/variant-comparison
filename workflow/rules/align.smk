@@ -46,35 +46,35 @@ def minimap2_preset(wildcards):
         raise ValueError(f"Cannot determine minimap2 preset from sample name: {wildcards.sample}")
 
 
-# rule minimap2_align:
-#     priority: 98
-#     input:
-#         reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",
-#         transcriptome = config["transcriptome_bed"],
-#         genome = config["reference_genome"],
-#     output:
-#         "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
-#     params:
-#         align_map_bam_threads = config["align_map_bam_threads"],
-#         align_sort_bam_threads = config["align_sort_bam_threads"],
-#         align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
-#         preset = minimap2_preset
-#     resources:
-#         mem_mb=45000,
-#     conda:
-#         "../envs/minimap2.yaml"
-#     log:
-#         stdout = "logs/minimap2/{status}/{sample}.out",
-#         stderr = "logs/minimap2/{status}/{sample}.err"
-#     shell:
-#         """
-#         minimap2 {params.preset} --junc-bed {input.transcriptome} \
-#             -t {params.align_map_bam_threads} \
-#             {input.genome} {input.reads} | samtools sort \
-#             -@ {params.align_sort_bam_threads} \
-#             -m{params.align_sort_bam_memory_gb}g \
-#             -o {output} > {log.stdout} 2> {log.stderr}
-#         """
+rule minimap2_align:
+    priority: 98
+    input:
+        reads = "results/align/{status}/bam2fq/{sample}.fastq.gz",
+        transcriptome = config["transcriptome_bed"],
+        genome = config["reference_genome"],
+    output:
+        "results/align/{status}/origin/minimap2_{sample}.aligned.bam"
+    params:
+        align_map_bam_threads = config["align_map_bam_threads"],
+        align_sort_bam_threads = config["align_sort_bam_threads"],
+        align_sort_bam_memory_gb = config["align_sort_bam_memory_gb"],
+        preset = minimap2_preset
+    resources:
+        mem_mb=45000,
+    conda:
+        "../envs/minimap2.yaml"
+    log:
+        stdout = "logs/minimap2/{status}/{sample}.out",
+        stderr = "logs/minimap2/{status}/{sample}.err"
+    shell:
+        """
+        minimap2 {params.preset} --junc-bed {input.transcriptome} \
+            -t {params.align_map_bam_threads} \
+            {input.genome} {input.reads} | samtools sort \
+            -@ {params.align_sort_bam_threads} \
+            -m{params.align_sort_bam_memory_gb}g \
+            -o {output} > {log.stdout} 2> {log.stderr}
+        """
 
 
 rule pbmm2_align:
@@ -142,7 +142,7 @@ rule split_ncigar:
         ref = config["reference_genome"],
         img = "/home/jiayiwang/tools/gatk-latest.simg"  
     output: 
-        "results/align/{status}/splitNC/{aligner}_{sample}.aligned.bam"
+        temp("results/align/{status}/splitNC/{aligner}_{sample}.aligned.bam")
     log:
         "logs/split_ncigar_reads_{status}_{aligner}_{sample}.log"
     params:

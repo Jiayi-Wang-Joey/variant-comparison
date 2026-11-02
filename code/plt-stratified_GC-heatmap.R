@@ -23,7 +23,7 @@ res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype == "*"]
 dt <- dt[grepl("^gc[0-9]", Subset)]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]

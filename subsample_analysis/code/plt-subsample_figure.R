@@ -6,6 +6,29 @@ suppressPackageStartupMessages({
     library(ggtext)
 })
 
+# y-positions for stacked-bar count labels, nudged apart to avoid overlap
+add_label_pos <- function(dt, by, min_gap_frac = 0.18) {
+    dt <- copy(dt)
+    setorderv(dt, c(by, "Category"))
+    dt[, ymax := rev(cumsum(rev(Count))), by = by]
+    dt[, ymin := ymax - Count]
+    dt[, ymid := (ymin + ymax) / 2]
+    dt[, total := sum(Count), by = by]
+    dt[, label_y := {
+        o <- order(ymid)
+        y <- ymid[o]
+        mg <- total[1] * min_gap_frac
+        n <- length(y)
+        if (n > 1) {
+            for (i in 2:n) if (y[i] - y[i - 1] < mg) y[i] <- y[i - 1] + mg
+        }
+        out <- numeric(n)
+        out[o] <- y
+        out
+    }, by = by]
+    dt
+}
+
 args <- commandArgs(trailingOnly = TRUE)
 bases_files <- strsplit(args[1], ";")[[1]]
 happy_files <- strsplit(args[2], ";")[[1]]
@@ -71,8 +94,7 @@ p_b <- ggplot(happy_pass, aes(coverage, METRIC.F1_Score, color = sample, group =
         panel.grid.major = element_line(color = "grey85", linewidth = 0.3),
         panel.grid.minor = element_blank(),
         panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
-        strip.background = element_rect(fill = "white", colour = "black", linewidth = 0.5),
-        aspect.ratio = 1
+        strip.background = element_rect(fill = "white", colour = "black", linewidth = 0.5)
     )
 
 # ---- panel c ------------
@@ -86,11 +108,9 @@ origin_dt <- snapshot[sample %in% c(SOURCE_SAMPLE, REF_SAMPLE)]
 origin_dt[, facet_col := "origin"]
 origin_dt[, sample_label := ifelse(sample == SOURCE_SAMPLE, "MasSeq", "dRNA004")]
 
-subsampled_dt <- snapshot[sample %in% c(SUBSAMPLE_SAMPLES, REF_SAMPLE)]
+subsampled_dt <- snapshot[sample %in% SUBSAMPLE_SAMPLES]
 subsampled_dt[, facet_col := "subsampled"]
-subsampled_dt[, sample_label := ifelse(
-    sample == REF_SAMPLE, "dRNA004", sub("HG004-MasSeq-subsampled-seed", "seed", sample)
-)]
+subsampled_dt[, sample_label := sub("HG004-MasSeq-subsampled-seed", "seed", sample)]
 
 panel_c_dt <- rbindlist(list(origin_dt, subsampled_dt))
 panel_c_dt[, facet_col := factor(facet_col, levels = c("origin", "subsampled"))]
@@ -109,33 +129,36 @@ td[, Category := tstrsplit(Category, "\\.", keep = 2)]
 
 .panel_c <- function(dt, title) {
     counts <- dt[Category %in% c("TP", "FN", "FP")]
+    counts_lab <- add_label_pos(counts, by = c("facet_col", "sample_label", "coverage_row"))
+    stack_top <- counts_lab[, .(top_y = max(label_y), total = total[1]),
+                             by = .(facet_col, sample_label, coverage_row)]
     f1 <- merge(
         dt[Category == "F1_Score", .(facet_col, sample_label, coverage_row, F1 = Count)],
-        counts[, .(Total = sum(Count)), by = .(facet_col, sample_label, coverage_row)],
+        stack_top,
         by = c("facet_col", "sample_label", "coverage_row")
     )
+    f1[, label_y := top_y + total * 0.18]
     ggplot() +
         geom_col(data = counts, aes(sample_label, Count, fill = Category)) +
         geom_text(
-            data = counts,
-            aes(sample_label, Count, label = Count, group = Category),
-            position = position_stack(vjust = 0.5),
-            size = 1.8
+            data = counts_lab,
+            aes(sample_label, label_y, label = Count),
+            size = 2.4
         ) +
         geom_text(
             data = f1,
-            aes(sample_label, Total * 1.12, label = sprintf("%.2f", F1)), 
-            size = 2.5, fontface = "bold"                                
-        ) +                                                              
+            aes(sample_label, label_y, label = sprintf("%.2f", F1)),
+            size = 2.8, fontface = "bold"
+        ) +
         facet_grid2(coverage_row ~ facet_col, scales = "free", space = "free_x") +
         scale_fill_brewer(palette = "Paired") +
-        scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.32))) +
         labs(x = "", y = "Total") +
         theme_classic() +
         theme(
             panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
             strip.background = element_rect(fill = "white", colour = "black", linewidth = 0.5),
-            axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 5.8)
+            axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8)
         ) +
         ggtitle(title)
 }
@@ -145,14 +168,18 @@ p_c2 <- .panel_c(td[Type == "INDEL"], "INDEL")
 
 
 p_ab <- (p_a / p_b) +
-    plot_layout(heights = c(1, 1))
+    plot_layout(heights = c(1, 1.5))
 
 p_cd <- (p_c1 + p_c2) +
     plot_layout(ncol = 2, guides = "collect") &
-    theme(legend.position = "bottom")
+    theme(
+        legend.position = "bottom",
+        legend.box.spacing = unit(0.1, "cm"),
+        legend.margin = margin(0, 0, 0, 0)
+    )
 
-gg <- wrap_plots(p_ab, p_cd, ncol = 1, heights = c(1.4, 1.1)) +
+gg <- wrap_plots(p_ab, p_cd, ncol = 1, heights = c(1.6, 1.4)) +
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(face = "bold"))
 
-ggsave(out_pdf, gg, width = 21, height = 27, units = "cm")
+ggsave(out_pdf, gg, width = 22, height = 28, units = "cm")

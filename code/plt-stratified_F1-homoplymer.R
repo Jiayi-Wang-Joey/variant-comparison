@@ -21,7 +21,7 @@ res <- lapply(args[[1]], function(f) {
 res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS" & !is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype=="*"]
 dt <- dt[grepl("homopolymer", Subset)]
 dt <- dt[aligner=="minimap2"]
@@ -70,7 +70,8 @@ cols <- c(
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER"     = "#FDBF6F"
+    "isoLASER"     = "#FDBF6F",
+    "NanoTS"       = "#E05A8A"
 )
 .p <- \(dt) {
     dt <- dt[!(Type == "INDEL" & grepl("dRNA|cDNA", platform) & tool == "isoLASER")]

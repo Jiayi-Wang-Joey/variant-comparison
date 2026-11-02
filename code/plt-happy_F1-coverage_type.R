@@ -17,7 +17,7 @@ dt <- rbindlist(res)
 .f <- \(filter, title) {
     dt <- dt[Filter==filter]
     dt <- dt[!is.na(METRIC.F1_Score)]
-    dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
+    dt <- dt[!(tool %in% c("longcallR", "NanoTS") & Type == "INDEL")]
     dt[,coverage:=factor(coverage, levels = unique(sort(dt$coverage)))]
     dt[,method:=paste(bamtype, aligner, tool, sep=">")]
     
@@ -31,7 +31,7 @@ dt <- rbindlist(res)
     saveRDS(dt, "data/results/happy.csv")
     dt <- dt[cell_line != "HG002"]
     snp <- dt[Type=="SNP"]
-    idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
+    idl <- dt[Type=="INDEL" & !grepl("longcallR|NanoTS", tool)]
     idl <- idl[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER")]
     cols <- c(
         "Clair3-RNA"   = "#A6CEE3",
@@ -39,7 +39,8 @@ dt <- rbindlist(res)
         "GATK"         = "#F06C45",
         "longcallR"    = "#B294C7",
         "longcallR-nn" = "#B15928",
-        "isoLASER" = "#FDBF6F"
+        "isoLASER" = "#FDBF6F",
+        "NanoTS"   = "#E05A8A"
     )
     .p <- \(dt, title, truth_labels) {
         ggplot(dt, aes(coverage, 

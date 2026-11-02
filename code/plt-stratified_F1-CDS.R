@@ -19,7 +19,7 @@ res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[Subtype == "*"]
 dt <- dt[Subset=="refseq_cds"]
 dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
@@ -41,7 +41,7 @@ dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
     dt[cell_line == "HG002a", cell_line := "HG002"]
     dt <- dt[aligner=="minimap2"]
     snp <- dt[Type=="SNP"]
-    idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
+    idl <- dt[Type=="INDEL" & !grepl("longcallR|NanoTS", tool)]
     nk <- length(unique(dt$tool))
     cols <- c(
         "Clair3-RNA"   = "#A6CEE3",
@@ -49,7 +49,8 @@ dt[,method:=paste(aligner, bamtype, tool, sep = ".")]
         "GATK"         = "#F06C45",
         "longcallR"    = "#B294C7",
         "longcallR-nn" = "#B15928",
-        "isoLASER" = "#FDBF6F"
+        "isoLASER" = "#FDBF6F",
+        "NanoTS"   = "#E05A8A"
     )
     .p <- \(dt, title) {
         truth_labels <- dt[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]), by = .(coverage, cell_line, platform)]

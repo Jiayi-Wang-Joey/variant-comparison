@@ -11,7 +11,7 @@ suppressPackageStartupMessages({
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
-dt <- dt[Filter=="PASS"]
+dt <- dt[Filter=="PASS" & aligner=="minimap2"]
 dt <- dt[!is.na(METRIC.F1_Score)]
 cols <- c(
     "Clair3-RNA"   = "#A6CEE3",
@@ -38,7 +38,7 @@ gg <- ggplot(dt, aes(coverage,
                color = tool,
                group = method)) +
     geom_point(alpha=0.8, size = 1.5) +
-    geom_line(alpha=0.8, inewidth=0.8, aes(linetype=bamtype)) + 
+    geom_line(alpha=0.8, linewidth=0.8, aes(linetype=bamtype)) + 
     theme_classic() +
     facet_grid2(Type ~ platform, scales = "free") + 
     labs(

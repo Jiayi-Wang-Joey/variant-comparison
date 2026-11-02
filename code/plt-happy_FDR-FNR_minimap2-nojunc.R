@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
 })
 setwd("/data/jiayiwang/variant-comparison")
 
-tools <- c("Clair3-RNA", "DeepVariant", "isoLASER", "longcallR", "longcallR-nn")
+tools <- c("Clair3-RNA", "DeepVariant", "isoLASER", "longcallR", "longcallR-nn", "NanoTS")
 samples <- c("MasSeq", "Baylor-IsoSeq", "cDNAxR09", "cDNAxR10", "dRNA002", "dRNA004")
 aligners <- c("minimap2", "minimap2-nojunc")
 
@@ -42,7 +42,8 @@ tool_cols <- c(
     "DeepVariant"  = "#52AF43",
     "isoLASER"     = "#FDBF6F",
     "longcallR"    = "#B294C7",
-    "longcallR-nn" = "#B15928"
+    "longcallR-nn" = "#B15928",
+    "NanoTS"       = "#E05A8A"
 )
 
 common_theme <- list(
@@ -99,5 +100,5 @@ gg <- pa / pb + plot_layout(heights = c(1, 2.2)) +
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(face = "bold"))
 
-ggsave("plts/happy_FDR-FNR_minimap2-vs-nojunc_HG004.pdf", gg, width = 34, height = 26, units = "cm")
+ggsave(args[[2]], gg, width = 34, height = 26, units = "cm")
 cat("done\n")

@@ -7,7 +7,30 @@ suppressPackageStartupMessages({
 })
 setwd("/data/jiayiwang/variant-comparison")
 
-tools <- c("Clair3-RNA", "DeepVariant", "isoLASER", "longcallR", "longcallR-nn")
+# y-positions for stacked-bar count labels, nudged apart to avoid overlap
+add_label_pos <- function(dt, by, min_gap_frac = 0.18) {
+    dt <- copy(dt)
+    setorderv(dt, c(by, "Category"))
+    dt[, ymax := rev(cumsum(rev(Count))), by = by]
+    dt[, ymin := ymax - Count]
+    dt[, ymid := (ymin + ymax) / 2]
+    dt[, total := sum(Count), by = by]
+    dt[, label_y := {
+        o <- order(ymid)
+        y <- ymid[o]
+        mg <- total[1] * min_gap_frac
+        n <- length(y)
+        if (n > 1) {
+            for (i in 2:n) if (y[i] - y[i - 1] < mg) y[i] <- y[i - 1] + mg
+        }
+        out <- numeric(n)
+        out[o] <- y
+        out
+    }, by = by]
+    dt
+}
+
+tools <- c("Clair3-RNA", "DeepVariant", "isoLASER", "longcallR", "longcallR-nn", "NanoTS")
 samples <- c("MasSeq", "Baylor-IsoSeq", "cDNAxR09", "cDNAxR10", "dRNA002", "dRNA004")
 aligners <- c("minimap2", "minimap2-nojunc")
 
@@ -31,12 +54,11 @@ for (t in tools) {
     }
 }
 dt <- rbindlist(rows)
-dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
-# isoLASER essentially doesn't call indels on ONT chemistries (TP in the single
-# digits to tens against thousands of truth indels, F1 ~0.00-0.01) -- exclude
-# those panels from the INDEL page rather than show near-empty, misleading bars.
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
+# isoLASER indels: PacBio only
 dt <- dt[!(tool == "isoLASER" & Type == "INDEL" & sample %in% c("cDNAxR09", "cDNAxR10", "dRNA002", "dRNA004"))]
-dt[, sample := factor(sample, levels = samples)]
+dt[sample == "Baylor-IsoSeq", sample := "IsoSeq"]  # display name
+dt[, sample := factor(sample, levels = sub("Baylor-IsoSeq", "IsoSeq", samples))]
 dt[, aligner := factor(aligner, levels = aligners)]
 dt[, tool := factor(tool, levels = tools)]
 
@@ -55,32 +77,44 @@ totals <- td[, .(Total = sum(Count)), by = .(tool, sample, aligner, Type, F1)]
 
 .mkplot <- \(type_lab) {
     disp_lab <- if (type_lab == "SNP") "SNV" else type_lab
+    counts_lab <- add_label_pos(td[Type == type_lab], by = c("tool", "aligner", "sample"))
+    stack_top <- counts_lab[, .(top_y = max(label_y), total = total[1]),
+                             by = .(tool, aligner, sample)]
+    f1 <- merge(
+        totals[Type == type_lab, .(tool, aligner, sample, F1)],
+        stack_top, by = c("tool", "aligner", "sample")
+    )
+    f1_offset <- if (type_lab == "SNP") 8000 else 2000
+    f1[, label_y := top_y + f1_offset]
     ggplot() +
         geom_col(
             data = td[Type == type_lab],
             aes(aligner, Count, fill = Category)
         ) +
         geom_text(
-            data = td[Type == type_lab],
-            aes(aligner, Count, label = Count, group = Category),
-            position = position_stack(vjust = 0.5),
-            size = 1.6
+            data = counts_lab,
+            aes(aligner, label_y, label = Count),
+            size = 3.2
         ) +
         geom_text(
-            data = totals[Type == type_lab],
-            aes(aligner, Total, label = sprintf("%.2f", F1)),
-            vjust = -0.4,
-            size = 2.2,
+            data = f1,
+            aes(aligner, label_y, label = sprintf("%.2f", F1)),
+            size = 3.8,
             fontface = "bold"
         ) +
         facet_grid2(tool ~ sample, scales = "free") +
         scale_fill_brewer(palette = "Paired") +
-        scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
-        theme_classic() +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.28))) +
+        theme_classic(base_size = 14) +
         theme(
             panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
-            axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
-            strip.text = element_markdown(size = 8)
+            axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+            axis.text.y = element_text(size = 11),
+            axis.title = element_text(size = 13),
+            plot.title = element_text(size = 15, face = "bold"),
+            strip.text = element_markdown(size = 12),
+            legend.title = element_text(size = 13),
+            legend.text = element_text(size = 11)
         ) +
         labs(y = paste0("Count (", disp_lab, ", PASS, coverage=5)"), x = "Aligner", fill = "Category",
              title = paste0(disp_lab, ": minimap2 vs minimap2-nojunc (HG004)"))
@@ -89,7 +123,7 @@ totals <- td[, .(Total = sum(Count)), by = .(tool, sample, aligner, Type, F1)]
 p_snp <- .mkplot("SNP")
 p_indel <- .mkplot("INDEL")
 
-pdf("plts/happy_number_minimap2-vs-nojunc_HG004.pdf", width = 32 / 2.54, height = 24 / 2.54)
+pdf(args[[2]], width = 34 / 2.54, height = 27 / 2.54)
 print(p_snp)
 print(p_indel)
 dev.off()
