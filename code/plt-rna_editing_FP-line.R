@@ -31,7 +31,8 @@ tool_cols <- c(
     "DeepVariant"  = "#52AF43",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER"     = "#FDBF6F"
+    "isoLASER"     = "#FDBF6F",
+    "NanoTS"       = "#E05A8A"
 )
 
 gg <- ggplot(agg, aes(coverage, pct, color = tool, group = tool)) +

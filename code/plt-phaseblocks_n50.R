@@ -34,7 +34,7 @@ dt[phaser == "isoLASER",  phaser := "isoLASER*"]
 snp <- dt[type == "SNP" & caller != "isoLASER" & phaser != "longcallR*"]
 
 # ALL data: exclude longcallR/isoLASER callers
-all <- dt[type == "all" & !grepl("longcallR|isoLASER", caller)]
+all <- dt[type == "all" & !grepl("longcallR|isoLASER|NanoTS", caller)]
 
 # isoLASER* and longcallR* SNP data — replicated across all caller facet rows
 callers_in_plot <- sort(unique(snp$caller))
@@ -110,8 +110,8 @@ n50_snp <- .mkplot(snp, star) + ggtitle("SNV")
 n50_all <- .mkplot(all, star_all, show_legend = FALSE) + ggtitle("ALL")
 
 gg <- (n50_snp / n50_all) +
-    plot_layout(guides = "collect", heights = c(1.5, 1)) +
+    plot_layout(guides = "collect", heights = c(2, 1)) +
     plot_annotation(tag_levels = "a") &
     theme(plot.tag = element_text(face = "bold"))
 
-ggsave(args[[2]], gg, width = 22, height = 22, units = "cm")
+ggsave(args[[2]], gg, width = 22, height = 27, units = "cm")

@@ -89,6 +89,7 @@ def get_bed_phasing(wildcards):
 rule compute_switch_error:
     input:
         truth = lambda wc: f"data/truth/{wc.sample[:5]}/phase.vcf.gz",
+        truth_tbi = lambda wc: f"data/truth/{wc.sample[:5]}/phase.vcf.gz.tbi",
         query = "results/phase_typed/{phaser}/{tool}_origin_minimap2_{sample}_{type}.vcf.gz",
         bed = get_bed_phasing
     output:
@@ -99,8 +100,6 @@ rule compute_switch_error:
         "../envs/whatshap.yaml"
     shell:
         """
-        tabix -f -p vcf "{input.truth}" >> "{log}" 2>&1
-        tabix -f -p vcf "{input.query}" >> "{log}" 2>&1
 
         TRUTH_R=tmp/{wildcards.phaser}_{wildcards.tool}_{wildcards.sample}_{wildcards.type}.truth.restricted.vcf.gz
         QUERY_R=tmp/{wildcards.phaser}_{wildcards.tool}_{wildcards.sample}_{wildcards.type}.query.restricted.vcf.gz
@@ -166,7 +165,6 @@ rule phase_block_stats:
         "../envs/whatshap.yaml"
     shell:
         """
-        tabix -f -p vcf "{input.vcf}" >> "{log}" 2>&1
 
         VCF_R=tmp/{wildcards.phaser}_{wildcards.tool}_{wildcards.sample}_{wildcards.type}.phaseblocks.restricted.vcf.gz
 

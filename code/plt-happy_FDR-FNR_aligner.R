@@ -15,7 +15,7 @@ dt <- dt[
     coverage == 5 &
         Filter == "PASS" &
         !is.na(METRIC.F1_Score) &
-        !(grepl("longcallR", tool) & Type == "INDEL") &
+        !(grepl("longcallR|NanoTS", tool) & Type == "INDEL") &
         grepl("MasSeq|IsoSeq", sample)
 ]
 dt[,FDR:=QUERY.FP/(TRUTH.TP+QUERY.FP)]
@@ -38,7 +38,8 @@ cols <- c(
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER" = "#FDBF6F"
+    "isoLASER" = "#FDBF6F",
+    "NanoTS"   = "#E05A8A"
 )
 td[, sample:=gsub("-Baylor", "", sample)]
 td[grepl("HG002a", sample), sample:=sub("HG002a", "HG002", sample)]

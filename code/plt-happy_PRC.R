@@ -16,7 +16,7 @@ res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
 dt <- rbindlist(res)
 dt <- dt[Filter=="PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(tool=="longcallR" & Type == "INDEL")]
+dt <- dt[!(tool %in% c("longcallR", "NanoTS") & Type == "INDEL")]
 dt[,coverage:=factor(coverage)]
 dt[,method:=paste(bamtype, aligner, tool, sep=">")]
 dt[,aligner_tool:=paste(aligner, tool, sep = ".")]
@@ -36,17 +36,16 @@ cols <- c(
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER" = "#FDBF6F"
+    "isoLASER" = "#FDBF6F",
+    "NanoTS"   = "#E05A8A"
 )
 dt[, Type := factor(Type, c("SNP", "INDEL"))]
 dt <- dt[aligner=="minimap2"]
 dt <- dt[cell_line=="HG002a", cell_line :="HG002"]
-dt <- dt[cell_line == "HG002"]
-dt <- dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Recall:=NA]
-dt <- dt[grepl("longcallR", tool) & Type=="INDEL", METRIC.Precision:=NA]
+dt <- dt[cell_line %in% c("HG002", "HG004", "HG005")]
+dt <- dt[grepl("longcallR|NanoTS", tool) & Type=="INDEL", METRIC.Recall:=NA]
+dt <- dt[grepl("longcallR|NanoTS", tool) & Type=="INDEL", METRIC.Precision:=NA]
 dt <- dt[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER" & Type=="INDEL")]
-# snp <- dt[Type=="SNP"]
-# idl <- dt[Type=="INDEL" & !grepl("longcallR", tool)]
 
 .p <- \(dt, title) {
     ggplot(dt, 
@@ -58,6 +57,7 @@ dt <- dt[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER" & Type=="INDEL")]
         geom_point(size=3, alpha = 0.8) +  
         facet_grid(Type ~ platform) +
         scale_color_manual(values = cols) +  
+        scale_shape_manual(values = c("HG002" = 16, "HG004" = 17, "HG005" = 15)) +  # same shape per cell line on both pages
         labs(
             x = "Recall",
             y = "Precision",
@@ -95,7 +95,7 @@ dt <- dt[!(grepl("dRNA|cDNA", platform) & tool == "isoLASER" & Type=="INDEL")]
         
 }
 
-gg <- .p(dt) 
-
-                
-ggsave(args[[2]], gg, width=25, height=12, units="cm")
+pdf(args[[2]], width = 25 / 2.54, height = 12 / 2.54)
+print(.p(dt[cell_line %in% c("HG004", "HG005")]))
+print(.p(dt[cell_line == "HG002"]))
+invisible(dev.off())

@@ -22,3 +22,5 @@ subsample_analysis/plts
 tables/
 test_isolaser/
 code/table*
+backup_isolaser_isoseq_preprocessed/**
+.gitignore

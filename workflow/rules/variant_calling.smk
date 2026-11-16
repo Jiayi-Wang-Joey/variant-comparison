@@ -58,6 +58,7 @@ rule run_clair3_rna:
             --threads {params.threads} \
             --platform {params.model} \
             --tag_variant_using_readiportal \
+            --min_coverage 0 \
             --remove_intermediate_dir \
             --output_dir {output[0]} \
             --conda_prefix /opt/conda/envs/clair3_rna" \
@@ -78,7 +79,7 @@ rule run_deep_variant:
     input: 
         bam=lambda wildcards: 
             f"results/align/preprocessed/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam"
-            if wildcards.sample in ISOSEQ_SAMPLE
+            if "IsoSeq" in wildcards.sample  # not ISOSEQ_SAMPLE: the Snakefile later shrinks it to HG002/HG005 for phasing
             else f"results/align/raw/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam",
         ref=config["reference_genome"],
         img="/home/jiayiwang/tools/deepvariant_1.9.0.sif"
@@ -86,14 +87,12 @@ rule run_deep_variant:
         "results/variant/DeepVariant/{bamtype}_{aligner}_{sample}.vcf.gz",
     log:
         "logs/run_deep_variant_{bamtype},{aligner},{sample}.log"
-    #threads: 10
     resources:
         mem_mb=32000,
         tmpdir="/data/jiayiwang/variant-comparison/tmp",
     params:
         threads = 10,
         model = lambda wildcards: "MASSEQ" if "IsoSeq" in wildcards.sample or "MasSeq" in wildcards.sample else "ONT_R104",
-        extra_args = lambda wildcards: "" if "IsoSeq" in wildcards.sample or "MasSeq" in wildcards.sample else '--make_examples_extra_args="split_skip_reads=true"'
     shell:
         """
         mkdir -p {resources.tmpdir}
@@ -104,13 +103,14 @@ rule run_deep_variant:
         export TF_NUM_INTEROP_THREADS=1
         export TF_NUM_INTRAOP_THREADS={threads}
         export TMPDIR={resources.tmpdir}
-        singularity exec --bind /usr/lib/locale/ --bind $(pwd -P):$(pwd -P) --pwd $(pwd -P) {input.img} /opt/deepvariant/bin/run_deepvariant\
+        mkdir -p /data/jiayiwang/tmp/deepvariant/{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}
+        singularity exec --bind /usr/lib/locale/ --bind $(pwd -P):$(pwd -P) --bind /data/jiayiwang/tmp:/data/jiayiwang/tmp --pwd $(pwd -P) {input.img} /opt/deepvariant/bin/run_deepvariant\
             --model_type {params.model} \
             --ref {input.ref} \
             --reads {input.bam} \
             --output_vcf {output} \
             --num_shards {params.threads} \
-            --intermediate_results_dir /home/jiayiwang/tmp/{wildcards.sample} \
+            --intermediate_results_dir /data/jiayiwang/tmp/deepvariant/{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample} \
         > {log} 2>&1
         """
 
@@ -280,6 +280,7 @@ rule longcallR_dp_predict:
           --contigs {wildcards.chr} \
           --output {output.dir} \
           {params.min_baseq} \
+          --min-depth 0 \
           >> {log} 2>&1
         """
 
@@ -339,6 +340,95 @@ rule longcallR_nn_merge:
         ) >> {log} 2>&1
         """
 
+
+def pick_nanots_model(sample, model_dir="/home/jiayiwang/tools/NanoTS/model"):
+    s = str(sample).lower()
+    if "masseq" in s or "isoseq" in s:
+        name = "MASseq_PacBio_Revio_HG002"
+    elif "cdna" in s:
+        name = "cDNA_nanopore_R104_HG002"
+    elif "drna" in s:
+        name = "dRNA_nanopore_R104_HG002"
+    else:
+        raise ValueError(f"sample '{sample}' does not contain cDNA/dRNA/IsoSeq/MasSeq")
+    return (f"{model_dir}/unphased_{name}.pth", f"{model_dir}/phased_{name}.pth")
+
+rule run_NanoTS_chr:
+    priority: 95
+    input:
+        bam="results/align/raw/{bamtype}/{aligner}_{sample}.aligned.bam",
+        ref=config["reference_genome"]
+    output:
+        vcf="results/variant/NanoTS/{bamtype}_{aligner}_{sample}/vcf/{chr}.vcf",
+        phased="results/variant/NanoTS/{bamtype}_{aligner}_{sample}/phased/{chr}.vcf"
+    log:
+        "logs/run_NanoTS_{bamtype}_{aligner}_{sample}_{chr}.log"
+    params:
+        threads=10,
+        outdir="results/variant/NanoTS/{bamtype}_{aligner}_{sample}/{chr}",
+        model_unphased=lambda wc: pick_nanots_model(wc.sample)[0],
+        model_phased=lambda wc: pick_nanots_model(wc.sample)[1]
+    resources:
+        mem_mb=32000,
+    conda:
+        "../envs/nanots.yaml"
+    shell:
+        """
+        if [ ! -f {input.bam}.bai ] || [ {input.bam} -nt {input.bam}.bai ]; then
+            samtools index {input.bam};
+        fi
+        rm -rf {params.outdir}
+        mkdir -p {params.outdir} $(dirname {output.vcf}) $(dirname {output.phased})
+
+        nanoTS full_pipeline \
+            --bam {input.bam} \
+            --ref {input.ref} \
+            --model_unphased {params.model_unphased} \
+            --model_phased {params.model_phased} \
+            --outdir {params.outdir}/ \
+            --region {wildcards.chr} \
+            --threads {params.threads} \
+            --ALT 2 --total 2 --ratio 0.05 --depth 1000 --hap_qual 10 \
+            > {log} 2>&1
+
+        if grep -q "Traceback" {log}; then
+            echo "ERROR: NanoTS failed for {wildcards.chr}, see {log}" >&2
+            exit 1
+        fi
+
+        EMPTY='##fileformat=VCFv4.2\\n##FILTER=<ID=PASS,Description="All filters passed">\\n#CHROM\\tPOS\\tID\\tREF\\tALT\\tQUAL\\tFILTER\\tINFO\\tFORMAT\\tSAMPLE\\n'
+        for pair in "unphased:{output.vcf}" "phased:{output.phased}"; do
+            src={params.outdir}/${{pair%%:*}}_predict.pass.vcf
+            dst=${{pair#*:}}
+            if [ -f "$src" ]; then
+                mv "$src" "$dst"
+            else
+                printf "$EMPTY" > "$dst"
+            fi
+        done
+        rm -rf {params.outdir}
+        """
+
+rule run_NanoTS:
+    priority: 95
+    input:
+        vcfs=expand("results/variant/NanoTS/{{bamtype}}_{{aligner}}_{{sample}}/vcf/{chr}.vcf", chr=CHR)
+    output:
+        vcfgz="results/variant/NanoTS/{bamtype}_{aligner}_{sample}.vcf.gz",
+        tbi="results/variant/NanoTS/{bamtype}_{aligner}_{sample}.vcf.gz.tbi"
+    log:
+        "logs/run_NanoTS_merge_{bamtype}_{aligner}_{sample}.log"
+    conda:
+        "../envs/bcftools.yaml"
+    shell:
+        """
+        (
+          bcftools concat {input.vcfs} 2>> {log} \
+          | bcftools sort -Oz -o {output.vcfgz} 2>> {log}
+          tabix -p vcf {output.vcfgz} 2>> {log}
+        ) >> {log} 2>&1
+        """
+
 rule extract_transcriptome:
     priority: 95
     input:
@@ -368,10 +458,7 @@ rule extract_transcriptome:
 rule isolaser_realign_annotate:
     priority: 95
     input:
-        bam=lambda wildcards: 
-            f"results/align/preprocessed/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam"
-            if wildcards.sample in ISOSEQ_SAMPLE
-            else f"results/align/raw/{wildcards.bamtype}/{wildcards.aligner}_{wildcards.sample}.aligned.bam",
+        bam="results/align/raw/{bamtype}/{aligner}_{sample}.aligned.bam",
         tx="data/isolaser/transcriptome.fa",
         gtf="data/isolaser/filtered.gtf.gz",
     output:
@@ -482,9 +569,7 @@ rule isolaser_filter:
         """
         mkdir -p $(dirname {output.vcf})
 
-        # Author-provided evaluation criteria: allelic ratio (AB) > 25%, GQ > 25,
-        # applied to all variant types. For multi-ALT sites, keep only the top-2 alleles by
-        # quality after splitting to biallelic records.
+        # AB > 0.25, GQ > 25; multi-ALT sites: keep top-2 alleles
         bcftools view -e 'ALT="<NON_REF>"' -f PASS {input.vcf} \
             | bcftools norm -m -any \
             | bcftools view -e 'ALT="<NON_REF>"' \

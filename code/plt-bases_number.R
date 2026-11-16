@@ -10,14 +10,16 @@ suppressPackageStartupMessages({
     library(RColorBrewer)
 })
 
+# a: standard region, b: common region (HG004)
 res <- lapply(args[[1]], fread, header=TRUE)
 res <- res[!vapply(res, \(.) nrow(.)==0, logical(1))]
-dt <- rbindlist(res)
+dt <- rbindlist(res, fill = TRUE)
 
 dt <- dt[metric == "callable_bases"]
 dt[, coverage := factor(min_coverage, levels = unique(sort(min_coverage)))]
 
-dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1))]
+dt[, platform := factor(sapply(strsplit(sample, "-"), tail, 1),
+    levels = c("IsoSeq", "MasSeq", "cDNAxR09", "cDNAxR10", "dRNA002", "dRNA004"))]
 dt[, platform := ifelse(grepl("MasSeq|IsoSeq", sample),
                         paste0("<span style='color:#54278f;'>", platform, "</span>"),
                         paste0("<span style='color:#d95f0e;'>", platform, "</span>"))]
@@ -68,8 +70,14 @@ aes <- list(
 )
 
 
-gg <- ggplot(dt, aes(coverage, value)) +
+.bars <- \(d) ggplot(d, aes(coverage, value / 1e6)) +
     geom_bar(stat = "identity") +
-    aes
+    aes +
+    labs(y = "Callable bases (Mb)")
 
-ggsave(args[[2]], gg, width=25, height=20, units="cm")
+pa <- .bars(dt[status == "raw"]) + labs(title = "Standard evaluation region")
+pb <- .bars(dt[status == "common"]) + labs(title = "Common region (standard region with isoLASER effective depth)")
+gg <- pa / pb + plot_annotation(tag_levels = "a") &
+    theme(plot.tag = element_text(face = "bold", size = 16))
+
+ggsave(args[[2]], gg, width=25, height=34, units="cm")

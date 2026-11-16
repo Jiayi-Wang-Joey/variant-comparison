@@ -53,11 +53,15 @@ rule callable_bases:
         "results/beds/raw/{sample}_minimap2_{coverage}.bed"
     output:
         "results/beds/raw/summary/{sample}_{coverage}.tsv"
+    conda:
+        "../envs/bcftools.yaml"
     shell:
         r"""
         mkdir -p $(dirname {output})
 
-        awk -v sample="{wildcards.sample}" \
+        # merge overlapping exon intervals so bases are counted once
+        sort -k1,1 -k2,2n {input} | bedtools merge -c 4 -o max -i - \
+        | awk -v sample="{wildcards.sample}" \
             -v status="raw" \
             -v mincov="{wildcards.coverage}" '
         BEGIN{{
@@ -76,37 +80,8 @@ rule callable_bases:
             print "sample","status","min_coverage","metric","value";
             print sample,status,mincov,"callable_bases",callable;
             print sample,status,mincov,"mean_callable_coverage",mean_cov;
-            print sample,status,mincov,"covered_bases",weighted_cov;
-        }}' {input} > {output}
+        }}' > {output}
         """
-
-# rule callable_bases_context:
-#     priority: 80
-#     input:
-#         bed="results/beds/raw/{sample}_minimap2_{coverage}.bed",
-#         region=lambda wildcards: STRAT_BEDS[wildcards.subset]
-#     output:
-#         "results/beds/context/{sample}_{coverage}_{subset}.tsv"
-#     wildcard_constraints:
-#         coverage=r"\d+",
-#         subset="|".join(CONTEXT_SUBSETS)
-#     conda:
-#         "../envs/bcftools.yaml"
-#     shell:
-#         r"""
-#         mkdir -p $(dirname {output})
-
-#         bedtools intersect -a {input.bed} -b {input.region} \
-#             | awk -v sample="{wildcards.sample}" \
-#                   -v mincov="{wildcards.coverage}" \
-#                   -v subset="{wildcards.subset}" '
-#         BEGIN{{OFS="\t"; callable=0}}
-#         {{callable += $3-$2}}
-#         END{{
-#             print "sample","coverage","subset","metric","value";
-#             print sample,mincov,subset,"callable_bases",callable;
-#         }}' > {output}
-#         """
 
 def get_bed(wildcards):
     sample = wildcards.sample
@@ -123,8 +98,7 @@ def get_bed(wildcards):
 
 
 def get_variant_vcf(wildcards):
-    # isoLASER's GQ/AB/multi-ALT filtering lives in its own rule (isolaser_filter,
-    # variant_calling.smk) rather than inline here; every other tool is used as-is.
+    # isoLASER calls are filtered in rule isolaser_filter
     if wildcards.tool == "isoLASER":
         return f"results/variant/isoLASER_filtered/{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz"
     return f"results/variant/{wildcards.tool}/{wildcards.bamtype}_{wildcards.aligner}_{wildcards.sample}.vcf.gz"
@@ -180,8 +154,11 @@ rule happy_benchmark:
         bcftools index -t -f $TMP
         rm -f "$SRC" "$SRC.tbi"
 
+        export TMPDIR=/data/jiayiwang/tmp
+        mkdir -p $TMPDIR
         singularity exec \
             --bind $(pwd -P):$(pwd -P) \
+            --bind $TMPDIR:$TMPDIR \
             --pwd $(pwd -P) \
             /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/hap.py \
             {params.truth} \
@@ -191,6 +168,7 @@ rule happy_benchmark:
             -T {input.bed} \
             -o {params.outdir} \
             --engine=vcfeval \
+            --scratch-prefix $TMPDIR \
             --threads={params.threads}
         
         awk -v tool="{wildcards.tool}" \
@@ -234,8 +212,11 @@ rule stratified_benchmark:
         "logs/stratified_{tool}_{bamtype}_{aligner}_{sample}_{coverage}.log"
     shell:
         """
+        export TMPDIR=/data/jiayiwang/tmp  # keep qfy.py scratch out of /tmp
+        mkdir -p $TMPDIR
         singularity exec \
             --bind $(pwd):$(pwd) \
+            --bind $TMPDIR:$TMPDIR \
             --pwd $(pwd) \
             /home/jiayiwang/tools/hap.py.simg /opt/hap.py/bin/qfy.py \
             {input.vcf} \
@@ -274,11 +255,7 @@ rule redi_bed:
         "../envs/bcftools.yaml"
     shell:
         """
-        # id column encodes the site's own Ref>Ed alleles (genome-forward-strand,
-        # per REDIportal's Ref/Ed columns) in the same CHROM_POS_REF_ALT format used
-        # for VCF calls elsewhere, so downstream rules can require an exact
-        # substitution match rather than just positional overlap (REDIportal is
-        # exclusively A>G / T>C, but a caller's FP at that position may not be).
+        # id column: CHROM_POS_REF_ALT
         zcat {input} | tail -n +2 | awk -F'\t' '{{print $2"\t"($3-1)"\t"$3"\t"$2"_"$3"_"$4"_"$5}}' \
             | sort -k1,1 -k2,2n \
             | uniq \
@@ -314,6 +291,8 @@ rule rna_editing_overlap:
         redi=rules.redi_bed.output
     output:
         "results/rna_editing/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.tsv"
+    wildcard_constraints:
+        tool="[^/]+"
     conda:
         "../envs/bcftools.yaml"
     shell:
@@ -332,22 +311,15 @@ rule rna_editing_overlap:
         awk -F'\t' 'NR==FNR {{pass[$4]=1; next}} ($4 in pass)' \
             {output}.pass.bed {output}.fp.bed > {output}.fp_pass.bed
 
-        # Loose: genomic position overlap only -- any FP landing on a cataloged
-        # editing coordinate counts, regardless of its own substitution.
+        # loose: position overlap
         bedtools intersect -u -a {output}.fp_pass.bed -b {input.redi} > {output}.fp_redi_loose.bed
 
-        # Strict: exact CHROM_POS_REF_ALT match against REDIportal's Ref>Ed alleles.
-        # REDIportal's Ref/Ed are already given in genome-forward-strand coordinates
-        # (strand-corrected per site: e.g. a minus-strand gene's A-to-I edit is
-        # recorded as T>C, not A>G), so matching a FP's own REF>ALT against the
-        # specific entry at that position enforces both the A-to-I edit signature
-        # and strand-consistency simultaneously.
+        # strict: exact CHROM_POS_REF_ALT match
         zcat {input.redi} | cut -f4 | sort -u > {output}.redi_ids.txt
         awk -F'\t' 'NR==FNR {{redi[$1]=1; next}} ($4 in redi)' \
             {output}.redi_ids.txt {output}.fp_pass.bed > {output}.fp_redi_strict.bed
 
-        # Per-file type (SNP/INDEL) counts, always emitting both keys even if zero,
-        # so joining below is safe regardless of which files are empty.
+        # SNP/INDEL counts per file (0 if absent)
         for f in {output}.fp_pass.bed {output}.fp_redi_loose.bed {output}.fp_redi_strict.bed; do
             awk -F'\t' 'BEGIN{{c["SNP"]=0;c["INDEL"]=0}} {{c[$5]++}} END{{for (t in c) print t"\t"c[t]}}' "$f" > "$f.counts"
         done
@@ -367,6 +339,40 @@ rule rna_editing_overlap:
         rm -f {output}.pass.bed {output}.fp.bed {output}.fp_pass.bed \
             {output}.fp_redi_loose.bed {output}.fp_redi_strict.bed {output}.redi_ids.txt \
             {output}.fp_pass.bed.counts {output}.fp_redi_loose.bed.counts {output}.fp_redi_strict.bed.counts
+        """
+
+
+rule rna_editing_spectrum:
+    input:
+        vcf="results/happy/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.vcf.gz",
+        orig_vcf=get_variant_vcf
+    output:
+        "results/rna_editing/spectrum/{tool}_{bamtype}_{aligner}_{sample}_{coverage}.tsv"
+    wildcard_constraints:
+        tool="[^/]+"
+    conda:
+        "../envs/bcftools.yaml"
+    shell:
+        """
+        mkdir -p $(dirname {output})
+
+        # REF>ALT spectrum of SNP TPs and FPs (PASS calls only)
+        bcftools view -f PASS {input.orig_vcf} \
+            | bcftools query -f '%CHROM\\_%POS\\_%REF\\_%ALT\\n' > {output}.pass_ids.txt
+
+        bcftools query -s QUERY -f '%CHROM\\_%POS\\_%REF\\_%ALT\\t%REF\\t%ALT\\t[%BD]\\t[%BVT]\\n' {input.vcf} \
+            | awk -F'\\t' -v tool="{wildcards.tool}" -v bamtype="{wildcards.bamtype}" \
+                  -v aligner="{wildcards.aligner}" -v sample="{wildcards.sample}" \
+                  -v coverage="{wildcards.coverage}" '
+            BEGIN {{OFS="\\t"}}
+            NR==FNR {{pass[$1]=1; next}}
+            ($4=="TP" || $4=="FP") && $5=="SNP" && ($1 in pass) {{c[$4"\\t"$2">"$3]++}}
+            END {{
+                print "tool","bamtype","aligner","sample","coverage","BD","substitution","count"
+                for (k in c) print tool,bamtype,aligner,sample,coverage,k,c[k]
+            }}' {output}.pass_ids.txt - > {output}
+
+        rm -f {output}.pass_ids.txt
         """
 
 

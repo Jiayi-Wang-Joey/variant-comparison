@@ -21,7 +21,7 @@ dt[, `:=`(
 )]
 .f <- \() {
     dt <- dt[!is.na(METRIC.F1_Score)]
-    dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
+    dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
     dt[,coverage:=factor(coverage, levels = unique(sort(dt$coverage)))]
     dt[,method:=paste(bamtype, aligner, tool, sep=">")]
     
@@ -42,7 +42,8 @@ dt[, `:=`(
         "GATK"         = "#F06C45",
         "longcallR"    = "#B294C7",
         "longcallR-nn" = "#B15928",
-        "isoLASER" = "#FDBF6F"
+        "isoLASER" = "#FDBF6F",
+        "NanoTS"   = "#E05A8A"
     )
     .p <- \(dt) {
         lb <- dt[, .(TRUTH.TOTAL = TRUTH.TOTAL[1]),

@@ -99,7 +99,7 @@ cols <- setNames(colorRampPalette(brewer.pal(12, "Paired"))(nk), main_effects)
     )
 }
 
-caller <- c("DeepVariant", "Clair3-RNA", "longcallR", "longcallR-nn", "isoLASER")
+caller <- c("DeepVariant", "Clair3-RNA", "longcallR", "longcallR-nn", "isoLASER", "NanoTS")
 sample <- c(
     "HG002a-MasSeq", "HG002a-Baylor-IsoSeq",
     "HG004-MasSeq", "HG004-Baylor-IsoSeq",
@@ -123,7 +123,7 @@ included_samples <- setdiff(sample, excluded_sample)
     (label | wrap_plots(ps, ncol = length(caller))) + plot_layout(widths = c(0.025, 1))
 }
 
-row_w <- 42 / 2.54
+row_w <- 42 * 6 / 5 / 2.54  # one panel per caller; widened from 5 to 6 callers
 extra_w <- 6 / 2.54
 page_w <- row_w + extra_w
 row_h <- 10 / 2.54

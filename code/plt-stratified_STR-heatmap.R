@@ -22,7 +22,7 @@ res <- lapply(args[[1]], function(f) {
 res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter=="PASS" & !is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR",tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[coverage==5 & Subtype=="*"]
 
 dt <- dt[aligner=="minimap2"]

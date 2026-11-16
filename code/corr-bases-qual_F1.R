@@ -2,7 +2,13 @@ suppressPackageStartupMessages({
     library(data.table)
 })
 
-happy <- readRDS("data/results/happy.csv")
+happy_files <- list.files("results/happy", "^[^_]+_origin_minimap2_.*_[0-9]+\\.summary\\.csv$", full.names = TRUE)
+happy <- rbindlist(lapply(happy_files, fread), fill = TRUE)
+happy <- happy[Filter == "PASS" & !is.na(METRIC.F1_Score) & bamtype == "origin" & aligner == "minimap2" &
+               coverage %in% c(1, 5, 10, 30, 50, 100)]
+happy <- happy[!grepl("subsampled|BCM|jurkat|Jurkat|WTC11|HG002[bc]|-copy", sample)]
+happy <- happy[!(sample %in% c("HG002-Baylor-IsoSeq", "HG002-MasSeq", "HG002-cDNAxR09", "HG002-cDNAxR10", "HG002-dRNA002"))]
+happy <- happy[!(sample %in% c("HG004-Baylor", "HG005-Baylor"))]
 happy <- unique(happy)
 happy[, coverage := as.integer(as.character(coverage))]
 
@@ -12,9 +18,8 @@ add_tech <- \(dt) {
     dt
 }
 
-# longcallR/longcallR-nn don't call INDELs; isoLASER only calls INDELs for PacBio (IsoSeq/MasSeq)
 filter_indel_tools <- \(dt) {
-    dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
+    dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
     dt <- dt[!(tool == "isoLASER" & Type == "INDEL" & !tech %in% c("IsoSeq", "MasSeq"))]
     dt
 }
@@ -69,7 +74,7 @@ for (ty in c("SNP", "INDEL")) {
 }
 
 # --- LaTeX table rendering ---
-tool_order <- c("Clair3-RNA", "DeepVariant", "GATK", "isoLASER", "longcallR", "longcallR-nn")
+tool_order <- c("Clair3-RNA", "DeepVariant", "GATK", "isoLASER", "longcallR", "longcallR-nn", "NanoTS")
 coverages <- c(1, 5, 10, 30, 50, 100)
 
 fmt_r <- \(x) {

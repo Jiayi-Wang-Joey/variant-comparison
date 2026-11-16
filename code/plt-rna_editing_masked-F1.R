@@ -11,7 +11,8 @@ tool_cols <- c(
     "DeepVariant"  = "#52AF43",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER"     = "#FDBF6F"
+    "isoLASER"     = "#FDBF6F",
+    "NanoTS"       = "#E05A8A"
 )
 
 cat_cols <- c("Other FP" = "grey70", "RNA editing (REDIportal)" = "#2166AC")
@@ -43,42 +44,34 @@ common_theme <- list(
             fill = "white",
             color = "black",
             linewidth = 0.8),
-        strip.text = element_markdown(size = 9),
+        strip.text = element_markdown(size = 15),
         axis.line = element_line(color = "black", linewidth = 0.3),
         panel.spacing = unit(0, "lines"),
         panel.spacing.x = unit(0, "lines"),
         panel.spacing.y = unit(0, "lines"),
-        axis.text.x = element_text(size = 7, angle = 45, hjust = 1),
-        axis.text.y = element_text(size = 7),
-        axis.title.x = element_text(size = 11),
-        axis.title.y = element_text(size = 11),
-        legend.title = element_text(size = 11),
+        axis.text.x = element_text(size = 11, angle = 45, hjust = 1),
+        axis.text.y = element_text(size = 13),
+        axis.title.x = element_text(size = 17),
+        axis.title.y = element_text(size = 17),
+        legend.title = element_text(size = 17, face = "bold"),
+        legend.text = element_text(size = 14),
         aspect.ratio = 1
     )
 )
 
-# ---- shared inputs ----
-redi_files <- args[[1]][!grepl("/spectrum/", args[[1]])]
+# a: A>G/T>C FPs at REDIportal sites; b/c: change in precision/recall after removing them
+redi_files <- args[[1]][grepl("/rna_editing/", args[[1]]) & !grepl("/spectrum/", args[[1]])]
 redi <- rbindlist(lapply(redi_files, fread))
 redi <- redi[Type == "SNP" & tool != "GATK"]
 redi[, coverage := as.integer(coverage)]
 redi <- add_tech(redi)
 
-spec_files <- args[[1]][grepl("/spectrum/", args[[1]])]
+spec_files <- args[[1]][grepl("/rna_editing/spectrum/", args[[1]])]
 spec <- rbindlist(lapply(spec_files, fread))
 spec <- spec[tool != "GATK" & !grepl(",", substitution)]
 spec <- add_tech(spec)
 
-# NOTE: not produced by any Snakemake rule (untracked, manually cached RDS) -
-# regenerate by hand if results/happy/ changes.
-happy <- as.data.table(readRDS("data/results/happy.csv"))
-happy <- happy[Filter == "PASS" & Type == "SNP" & tool != "GATK"]
-happy[, coverage := as.integer(as.character(coverage))]
-happy <- add_tech(happy)
-
-# --- a: total A>G/T>C FP, stacked (REDIportal-confirmed vs other), coverage=5, by chemistry ---
 REF_COV <- 5
-
 fp_atogttoc <- spec[BD == "FP" & substitution %in% c("A>G", "T>C") & coverage == REF_COV,
                      .(FP_AtoG_TtoC = sum(count)), by = .(tool, cell_line, tech)]
 redi_agg <- redi[coverage == REF_COV, .(FP_redi_strict = sum(FP_in_REDIportal_strict)),
@@ -97,38 +90,41 @@ long_a[, category := factor(category, levels = c("FP_other", "FP_redi_strict"),
 pa <- ggplot(long_a, aes(tool, count, fill = category)) +
     geom_bar(stat = "identity") +
     geom_text(data = da, aes(x = tool, y = FP_AtoG_TtoC, label = paste0(pct, "%")),
-              inherit.aes = FALSE, vjust = -0.3, size = 2) +
+              inherit.aes = FALSE, angle = 45, hjust = 0, vjust = 0, size = 3,
+              position = position_nudge(x = -0.2)) +
     facet_grid2(cell_line ~ tech, scales = "free") +
     scale_fill_manual(values = cat_cols) +
-    scale_y_continuous(expand = expansion(mult = c(0.02, 0.18))) +
+    scale_y_continuous(expand = expansion(mult = c(0.02, 0.32))) +
     common_theme +
     labs(x = "Variant Caller", y = "Number of A>G/T>C FP SNVs", fill = "Category")
 
-# --- b: improved F1 (masked - original), vs coverage, by chemistry ---
-db <- merge(happy, redi[, .(tool, bamtype, aligner, sample, coverage, FP_in_REDIportal_strict)],
-            by = c("tool", "bamtype", "aligner", "sample", "coverage"), all.x = TRUE)
-db[is.na(FP_in_REDIportal_strict), FP_in_REDIportal_strict := 0]
+hp <- fread(args[[1]][grepl("combined_SNP\\.csv$", args[[1]])])[tool != "GATK"]
+hp <- add_tech(hp)
+.agg <- \(x) x[, .(TP = sum(TRUTH.TP), FP = sum(QUERY.FP), FN = sum(TRUTH.FN)),
+               by = .(tool, cell_line, tech, coverage)]
+d <- merge(.agg(hp[set == "orig"]), .agg(hp[set == "masked"]),
+           by = c("tool", "cell_line", "tech", "coverage"), suffixes = c("_orig", "_masked"))
+d[, `:=`(dPrecision = TP_masked / (TP_masked + FP_masked) - TP_orig / (TP_orig + FP_orig),
+         dRecall    = TP_masked / (TP_masked + FN_masked) - TP_orig / (TP_orig + FN_orig),
+         dF1        = 2 * TP_masked / (2 * TP_masked + FP_masked + FN_masked) -
+                      2 * TP_orig / (2 * TP_orig + FP_orig + FN_orig))]
+d[, coverage := factor(coverage, levels = sort(unique(coverage)))]
 
-db_agg <- db[, .(TP = sum(TRUTH.TP), FP = sum(QUERY.FP), FN = sum(TRUTH.FN),
-                  FP_redi_strict = sum(FP_in_REDIportal_strict)),
-             by = .(tool, cell_line, tech, coverage)]
-db_agg[, masked_FP := FP - FP_redi_strict]
-db_agg[, orig_precision := TP / (TP + FP)]
-db_agg[, masked_precision := TP / (TP + masked_FP)]
-db_agg[, improved_precision := masked_precision - orig_precision]
-db_agg[, coverage := factor(coverage, levels = sort(unique(coverage)))]
-
-pb <- ggplot(db_agg, aes(coverage, improved_precision, color = tool, group = tool)) +
+.p <- \(y, lab) ggplot(d, aes(coverage, .data[[y]], color = tool, group = tool)) +
+    geom_hline(yintercept = 0, colour = "grey50", linetype = "dashed", linewidth = 0.4) +
     geom_point(size = 1.5, alpha = 0.8) +
     geom_line(linewidth = 0.8, alpha = 0.8) +
     facet_grid2(cell_line ~ tech, scales = "free") +
     scale_color_manual(values = tool_cols) +
     common_theme +
-    theme(axis.text.x = element_text(size = 7, angle = 0, hjust = 0.5)) +
-    labs(x = "Coverage Cutoff (DP >= n)", y = "Improved Precision", color = "Variant Caller")
+    theme(axis.text.x = element_text(size = 11, angle = 45, hjust = 1)) +
+    labs(x = "Coverage Cutoff (DP >= n)", y = lab, color = "Variant Caller")
 
-gg <- pa + pb + plot_layout(ncol = 1) +
+gg <- pa / .p("dPrecision", expression(Delta * " Precision (REDIportal-filtered)")) /
+      .p("dRecall", expression(Delta * " Recall (REDIportal-filtered)")) +
+    plot_layout(guides = "collect") +
     plot_annotation(tag_levels = "a") &
-    theme(plot.tag = element_text(face = "bold"))
+    theme(plot.tag = element_text(size = 20, face = "bold"),
+          legend.position = "bottom", legend.box = "vertical")
 
-ggsave(args[[2]], gg, width = 27, height = 20, units = "cm")
+ggsave(args[[2]], gg, width = 28, height = 40, units = "cm")

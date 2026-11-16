@@ -20,7 +20,7 @@ res <- Filter(Negate(is.null), res)
 dt <- rbindlist(res, use.names = TRUE)
 dt <- dt[Filter == "PASS"]
 dt <- dt[!is.na(METRIC.F1_Score)]
-dt <- dt[!(grepl("longcallR", tool) & Type == "INDEL")]
+dt <- dt[!(grepl("longcallR|NanoTS", tool) & Type == "INDEL")]
 dt <- dt[coverage == 5 & aligner == "minimap2"]
 
 dt[, cell_line := sapply(strsplit(sample, "-"), head, 1)]
@@ -39,7 +39,8 @@ cols <- c(
     "GATK"         = "#F06C45",
     "longcallR"    = "#B294C7",
     "longcallR-nn" = "#B15928",
-    "isoLASER"     = "#FDBF6F"
+    "isoLASER"     = "#FDBF6F",
+    "NanoTS"       = "#E05A8A"
 )
 
 theme_ctx <- theme(
